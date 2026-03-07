@@ -49,7 +49,7 @@ def private_panel(_):
             ),
         ],
         [
-            InlineKeyboardButton(text=_["S_B_2"],, callback_data="shiv_Shashank"
+            InlineKeyboardButton(text=_["S_B_2"], callback_data="shiv_Shashank"
             ),
             InlineKeyboardButton(text="sᴏᴜʀᴄᴇ", callback_data="gib_source"
             ),
