@@ -1,23 +1,8 @@
-# -----------------------------------------------
-# 🔸 ShashankMusic Project
-# 🔹 Developed & Maintained by: Shashank Shukla (https://github.com/itzshukla)
-# 📅 Copyright © 2025 – All Rights Reserved
-#
-# 📖 License:
-# This source code is open for educational and non-commercial use ONLY.
-# You are required to retain this credit in all copies or substantial portions of this file.
-# Commercial use, redistribution, or removal of this notice is strictly prohibited
-# without prior written permission from the author.
-#
-# ❤️ Made with dedication and love by ItzShukla
-# -----------------------------------------------
-
 import os
 import re
-import random
 import aiofiles
 import aiohttp
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from youtubesearchpython.__future__ import VideosSearch
 from config import YOUTUBE_IMG_URL
 from ShashankMusic import app
@@ -25,161 +10,145 @@ from ShashankMusic import app
 CACHE_DIR = "cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
 
-DUAL_TONES = [
-    ((20, 20, 20), (240, 240, 240)),
-    ((25, 30, 45), (250, 250, 250)),
-    ((15, 40, 65), (230, 230, 230)),
-    ((55, 10, 80), (255, 245, 255))
-]
 
-def trim_to_width(text: str, font: ImageFont.FreeTypeFont, max_w: int) -> str:
-    ellipsis = "…"
+def trim_to_width(text, font, max_w):
     try:
-        if font.getlength(text) <= max_w:
-            return text
-        for i in range(len(text)-1, 0, -1):
-            if font.getlength(text[:i] + ellipsis) <= max_w:
-                return text[:i] + ellipsis
+        while font.getlength(text) > max_w and len(text) > 3:
+            text = text[:-1]
+        return text + "..."
     except:
-        return text[:max_w//10] + "…" if len(text) > max_w//10 else text
-    return ellipsis
+        return text
 
 
-async def get_thumb(videoid: str, player_username: str = None) -> str:
+async def get_thumb(videoid: str, player_username: str = None):
     if player_username is None:
-        player_username = app.username
+        player_username = getattr(app, "username", "MusicBot")
 
-    cache_path = os.path.join(CACHE_DIR, f"{videoid}_hexagon.png")
-    if os.path.exists(cache_path):
-        return cache_path
+    final_path = f"{CACHE_DIR}/{videoid}_final.png"
+    if os.path.exists(final_path):
+        return final_path
 
-    # === Fetch Video Info ===
+    # 🔍 FETCH DATA
     try:
-        results = VideosSearch(f"https://www.youtube.com/watch?v={videoid}", limit=1)
-        search = await results.next()
-        data = search.get("result", [])[0]
-        title = re.sub(r"\W+", " ", data.get("title", "Unknown Title")).title()
-        thumbnail = data.get("thumbnails", [{}])[0].get("url", YOUTUBE_IMG_URL)
-        duration = data.get("duration")
-        views = data.get("viewCount", {}).get("short", "Unknown Views")
+        results = VideosSearch(videoid, limit=1)
+        res = await results.next()
+        data = res["result"][0]
+
+        title = re.sub(r"\W+", " ", data.get("title", "Unknown")).title()
+        thumb_url = data.get("thumbnails", [{}])[0].get("url", YOUTUBE_IMG_URL)
+        duration = data.get("duration", "Live")
+        views = data.get("viewCount", {}).get("short", "0")
+
     except:
-        title, thumbnail, duration, views = "Unknown", YOUTUBE_IMG_URL, None, "Unknown"
+        title, thumb_url, duration, views = "Unknown", YOUTUBE_IMG_URL, "Live", "0"
 
-    is_live = not duration or str(duration).lower() in {"live", "live now", ""}
-    duration_text = "Live" if is_live else duration or "Unknown"
+    thumb_path = f"{CACHE_DIR}/{videoid}.png"
 
-    thumb_path = os.path.join(CACHE_DIR, f"thumb_{videoid}.png")
+    # ⬇ DOWNLOAD
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(thumbnail) as r:
+            async with session.get(thumb_url) as r:
                 if r.status == 200:
                     async with aiofiles.open(thumb_path, "wb") as f:
                         await f.write(await r.read())
+                else:
+                    thumb_path = None
     except:
-        return YOUTUBE_IMG_URL
+        thumb_path = None
 
-    # === Smooth Blurred Background ===
-    bg = Image.open(thumb_path).resize((1280, 720)).convert("RGB")
-    bg = bg.filter(ImageFilter.GaussianBlur(30)).convert("RGBA")
-    overlay = Image.new("RGBA", (1280, 720), (255, 255, 255, 40))
-    bg = Image.alpha_composite(bg, overlay)
+    # 🎨 BACKGROUND (SHRUTI STYLE GLOW)
+    base = Image.new("RGB", (1280, 720), (10, 10, 10))
 
-    # === HEXAGON CUT THUMBNAIL ===
-    thumb = Image.open(thumb_path).resize((520, 520)).convert("RGBA")
+    glow = Image.new("RGB", (1280, 720), (0, 0, 0))
+    g = ImageDraw.Draw(glow)
+    g.ellipse((200, 0, 1100, 720), fill=(255, 60, 150))
+    glow = glow.filter(ImageFilter.GaussianBlur(200))
 
-    hex_points = [
-        (260, 0),
-        (520, 130),
-        (520, 390),
-        (260, 520),
-        (0, 390),
-        (0, 130)
-    ]
-
-    mask = Image.new("L", (520, 520), 0)
-    draw_mask = ImageDraw.Draw(mask)
-    draw_mask.polygon(hex_points, fill=255)
-
-    hex_thumb = Image.new("RGBA", (520, 520), (0, 0, 0, 0))
-    hex_thumb.paste(thumb, (0, 0), mask)
-
-    # ===========================================
-    # ⭐ 3D HEXAGON EFFECT + PINK BORDER
-    # ===========================================
-    border_img = Image.new("RGBA", (600, 600), (0, 0, 0, 0))
-    d = ImageDraw.Draw(border_img)
-    offset = 40
-
-    border_hex = [(x + offset, y + offset) for x, y in hex_points]
-
-    # 3D EFFECT (dark inner edge)
-    d.polygon(border_hex, outline=(90, 0, 60, 255), width=26)
-
-    # 3D EFFECT (light highlight outer)
-    d.polygon(border_hex, outline=(255, 100, 200, 180), width=10)
-
-    # Main Thick Pink Border
-    d.polygon(border_hex, outline=(255, 40, 150, 255), width=16)
-
-    # PLACE BORDER + THUMB
-    bg.paste(border_img, (60, 60), border_img)
-    bg.paste(hex_thumb, (100, 100), hex_thumb)
+    bg = Image.blend(base, glow, 0.45).convert("RGBA")
 
     draw = ImageDraw.Draw(bg)
 
-    # === FONTS ===
+    # 🖼 THUMB
     try:
-        title_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 44)
-        meta_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 26)
-        tag_font = ImageFont.truetype("ShashankMusic/assets/font2.ttf", 28)
+        thumb = Image.open(thumb_path).resize((520, 520)).convert("RGBA")
     except:
-        title_font = meta_font = tag_font = ImageFont.load_default()
+        thumb = Image.new("RGBA", (520, 520), (40, 40, 40, 255))
 
-    # === TITLE (BLACK) ===
-    title_x = 700
-    title_y = 180
-    title_text = trim_to_width(title, title_font, 480)
-    draw.text((title_x, title_y), title_text, fill=(0, 0, 0), font=title_font)
+    # 🔷 HEXAGON MASK
+    hex_points = [
+        (260, 0), (520, 130), (520, 390),
+        (260, 520), (0, 390), (0, 130)
+    ]
 
-    # === META (BLACK) ===
-    meta = (
-        f"YouTube | {views}\n"
-        f"Duration | {duration_text}\n"
-        f"Player | @{player_username}\n"
-    )
-    draw.multiline_text(
-        (title_x, title_y + 90),
-        meta,
-        fill=(0, 0, 0),
-        spacing=10,
-        font=meta_font
-    )
+    mask = Image.new("L", (520, 520), 0)
+    ImageDraw.Draw(mask).polygon(hex_points, fill=255)
 
-    # === PROGRESS BAR ===
-    bar_y = title_y + 240
-    bar_w = 390
+    hex_thumb = Image.new("RGBA", (520, 520))
+    hex_thumb.paste(thumb, (0, 0), mask)
 
-    draw.rounded_rectangle(
-        (title_x, bar_y, title_x + bar_w, bar_y + 14),
-        8,
-        fill=(255, 255, 255, 80)
-    )
+    # 🔥 SHADOW
+    shadow = Image.new("RGBA", (600, 600), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(shadow)
+    sd.polygon([(x+40, y+40) for x, y in hex_points], fill=(0, 0, 0, 180))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(40))
+    bg.paste(shadow, (60, 60), shadow)
 
-    draw.rounded_rectangle(
-        (title_x, bar_y, title_x + bar_w // 2, bar_y + 14),
-        8,
-        fill=(0, 0, 0)
-    )
+    # 🔥 BORDER + GLOW
+    border = Image.new("RGBA", (600, 600), (0, 0, 0, 0))
+    bd = ImageDraw.Draw(border)
+    border_hex = [(x+40, y+40) for x, y in hex_points]
 
-    # === BRANDING (BLACK) ===
-    brand = "DEV :- @iamthakur007"
-    w = tag_font.getlength(brand)
-    draw.text((1280 - w - 50, 680), brand, fill=(0, 0, 0), font=tag_font)
+    bd.polygon(border_hex, outline=(255, 40, 150), width=14)
 
+    bg.paste(border.filter(ImageFilter.GaussianBlur(40)), (60, 60))
+    bg.paste(border.filter(ImageFilter.GaussianBlur(20)), (60, 60))
+    bg.paste(border, (60, 60))
+
+    bg.paste(hex_thumb, (100, 100), hex_thumb)
+
+    # 🅵🅾🅽🆃
     try:
-        os.remove(thumb_path)
+        font_path = "ShashankMusic/assets/font.ttf"
+        title_font = ImageFont.truetype(font_path, 44)
+        meta_font = ImageFont.truetype(font_path, 28)
+        small_font = ImageFont.truetype(font_path, 24)
+    except:
+        title_font = meta_font = small_font = ImageFont.load_default()
+
+    # 🔴 NOW PLAYING TAG
+    draw.rounded_rectangle((700, 120, 950, 170), 20, fill=(255, 40, 150))
+    draw.text((730, 130), "NOW PLAYING", fill="white", font=small_font)
+
+    # 🎵 TITLE (GLOW TEXT)
+    title = trim_to_width(title, title_font, 480)
+    draw.text((703, 203), title, fill=(255, 40, 150), font=title_font)
+    draw.text((700, 200), title, fill="white", font=title_font)
+
+    # LINE
+    draw.line((700, 260, 1100, 260), fill=(255, 40, 150), width=3)
+
+    # 📊 META
+    draw.text((700, 290), f"Duration: {duration}", fill="white", font=meta_font)
+    draw.text((700, 330), f"Views: {views}", fill=(255, 120, 180), font=meta_font)
+    draw.text((700, 370), f"Player: @{player_username}", fill=(255, 120, 180), font=meta_font)
+
+    # 🎚 BAR
+    bar_x, bar_y = 700, 450
+    bar_w = 420
+
+    draw.rounded_rectangle((bar_x, bar_y, bar_x+bar_w, bar_y+12), 8, fill=(70,70,70))
+    draw.rounded_rectangle((bar_x, bar_y, bar_x+bar_w//2, bar_y+12), 8, fill=(255,40,150))
+    draw.ellipse((bar_x+bar_w//2-8, bar_y-4, bar_x+bar_w//2+8, bar_y+16), fill="white")
+
+    # 🏷 BRAND
+    draw.text((900, 670), "Powered by Mr Thakur", fill=(255, 40, 150), font=small_font)
+
+    # 🧹 CLEAN
+    try:
+        if thumb_path and os.path.exists(thumb_path):
+            os.remove(thumb_path)
     except:
         pass
 
-    bg.save(cache_path)
-    return cache_path
+    bg.save(final_path)
+    return final_path
