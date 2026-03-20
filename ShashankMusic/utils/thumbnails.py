@@ -104,8 +104,8 @@ async def gen_thumb(videoid: str, player_username=None):
     # 🅵🅾🅽🆃
     try:
         title_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 44)
-        meta_font = ImageFont.truetype("ShrutiMusic/assets/font.ttf", 30)
-        small_font = ImageFont.truetype("ShrutiMusic/assets/font.ttf", 26)
+        meta_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 30)
+        small_font = ImageFont.truetype("ShashankMusic/assets/font2.ttf", 26)
     except:
         title_font = meta_font = small_font = ImageFont.load_default()
 
