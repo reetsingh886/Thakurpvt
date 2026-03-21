@@ -3,14 +3,13 @@ import re
 import aiofiles
 import aiohttp
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
-from py_yt import VideosSearch
+from youtubesearchpython import VideosSearch   # ✅ FIXED
 from config import YOUTUBE_IMG_URL
 
-# CACHE
 CACHE_DIR = "cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
 
-# UI CONFIG
+# UI
 PANEL_W, PANEL_H = 763, 545
 PANEL_X = (1280 - PANEL_W) // 2
 PANEL_Y = 88
@@ -37,17 +36,15 @@ ICONS_Y = BAR_Y + 48
 MAX_TITLE_WIDTH = 580
 
 
-# CLEAN TITLE
 def clean_title(text):
     text = str(text)
     text = re.sub(r"http\S+", "", text)
     text = re.sub(r"\[.*?\]|\(.*?\)", "", text)
     text = re.sub(r"[^a-zA-Z0-9\u0900-\u097F\s\-]", "", text)
-    return text.strip()
+    return text.strip().title()
 
 
-# TRIM
-def trim_to_width(text: str, font: ImageFont.FreeTypeFont, max_w: int) -> str:
+def trim_to_width(text, font, max_w):
     ellipsis = "…"
     try:
         if font.getlength(text) <= max_w:
@@ -60,8 +57,8 @@ def trim_to_width(text: str, font: ImageFont.FreeTypeFont, max_w: int) -> str:
     return text
 
 
-# MAIN FUNCTION
 async def get_thumb(videoid: str) -> str:
+    # video id clean
     if "v=" in videoid:
         videoid = videoid.split("v=")[-1].split("&")[0]
 
@@ -69,10 +66,10 @@ async def get_thumb(videoid: str) -> str:
     if os.path.exists(cache_path):
         return cache_path
 
-    # YT FETCH
+    # 🔥 YT FETCH
     try:
-        results = VideosSearch(videoid, limit=1)
-        data = (await results.next())["result"][0]
+        search = VideosSearch(videoid, limit=1)
+        data = (await search.next())["result"][0]
 
         raw_title = data.get("title", "")
         thumbnail = data.get("thumbnails", [{}])[0].get("url", YOUTUBE_IMG_URL)
@@ -85,18 +82,13 @@ async def get_thumb(videoid: str) -> str:
         duration = "3:00"
         views = "Unknown Views"
 
-    # FINAL TITLE FIX
+    # 🔥 FINAL TITLE FIX
     if not raw_title or len(raw_title) < 3:
         title = "Unknown Track"
     else:
-        title = clean_title(raw_title).title()
+        title = clean_title(raw_title)
 
-    if len(title) < 3:
-        title = "Unknown Track"
-
-    is_live = not duration or str(duration).lower() in ["", "live"]
-
-    # DOWNLOAD
+    # download thumb
     thumb_path = os.path.join(CACHE_DIR, f"{videoid}.jpg")
     try:
         async with aiohttp.ClientSession() as session:
@@ -107,14 +99,14 @@ async def get_thumb(videoid: str) -> str:
     except:
         return YOUTUBE_IMG_URL
 
-    # BASE
+    # bg
     base = Image.open(thumb_path).resize((1280, 720)).convert("RGBA")
     bg = ImageEnhance.Brightness(base.filter(ImageFilter.BoxBlur(10))).enhance(0.6)
 
-    # PANEL
-    panel_area = bg.crop((PANEL_X, PANEL_Y, PANEL_X + PANEL_W, PANEL_Y + PANEL_H))
+    # glass panel
+    panel = bg.crop((PANEL_X, PANEL_Y, PANEL_X + PANEL_W, PANEL_Y + PANEL_H))
     overlay = Image.new("RGBA", (PANEL_W, PANEL_H), (255, 255, 255, TRANSPARENCY))
-    frosted = Image.alpha_composite(panel_area, overlay)
+    frosted = Image.alpha_composite(panel, overlay)
 
     mask = Image.new("L", (PANEL_W, PANEL_H), 0)
     ImageDraw.Draw(mask).rounded_rectangle((0, 0, PANEL_W, PANEL_H), 50, fill=255)
@@ -122,24 +114,24 @@ async def get_thumb(videoid: str) -> str:
 
     draw = ImageDraw.Draw(bg)
 
-    # FONT (FIXED PATH)
+    # fonts
     try:
         title_font = ImageFont.truetype("ShashankMusic/assets/font2.ttf", 32)
         regular_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 18)
     except:
         title_font = regular_font = ImageFont.load_default()
 
-    # THUMB
+    # thumb
     thumb = base.resize((THUMB_W, THUMB_H))
     tmask = Image.new("L", thumb.size, 0)
     ImageDraw.Draw(tmask).rounded_rectangle((0, 0, THUMB_W, THUMB_H), 20, fill=255)
     bg.paste(thumb, (THUMB_X, THUMB_Y), tmask)
 
-    # TEXT
+    # text
     draw.text((TITLE_X, TITLE_Y), trim_to_width(title, title_font, MAX_TITLE_WIDTH), fill="black", font=title_font)
     draw.text((META_X, META_Y), f"YouTube • {views}", fill="black", font=regular_font)
 
-    # BAR
+    # bar
     draw.line([(BAR_X, BAR_Y), (BAR_X + BAR_RED_LEN, BAR_Y)], fill="red", width=6)
     draw.line([(BAR_X + BAR_RED_LEN, BAR_Y), (BAR_X + BAR_TOTAL_LEN, BAR_Y)], fill="gray", width=5)
     draw.ellipse([(BAR_X + BAR_RED_LEN - 7, BAR_Y - 7), (BAR_X + BAR_RED_LEN + 7, BAR_Y + 7)], fill="red")
@@ -147,15 +139,13 @@ async def get_thumb(videoid: str) -> str:
     draw.text((BAR_X, BAR_Y + 15), "00:00", fill="black", font=regular_font)
     draw.text((BAR_X + BAR_TOTAL_LEN - 60, BAR_Y + 15), duration or "3:00", fill="black", font=regular_font)
 
-    # ICONS (FIXED PATH)
+    # icons
     icons_path = "ShashankMusic/assets/play_icons.png"
     if os.path.isfile(icons_path):
         ic = Image.open(icons_path).resize((ICONS_W, ICONS_H)).convert("RGBA")
-        r, g, b, a = ic.split()
-        black_ic = Image.merge("RGBA", (r.point(lambda *_: 0), g.point(lambda *_: 0), b.point(lambda *_: 0), a))
-        bg.paste(black_ic, (ICONS_X, ICONS_Y), black_ic)
+        bg.paste(ic, (ICONS_X, ICONS_Y), ic)
 
-    # CLEANUP
+    # cleanup
     try:
         os.remove(thumb_path)
     except:
