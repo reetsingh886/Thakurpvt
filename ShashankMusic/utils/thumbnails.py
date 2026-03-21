@@ -3,8 +3,6 @@ import re
 import aiofiles
 import aiohttp
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
-from youtubesearchpython import VideosSearch
-from config import YOUTUBE_IMG_URL
 from ShashankMusic import app
 
 CACHE_DIR = "cache"
@@ -26,7 +24,7 @@ def trim(text, font, max_w):
         return text
 
 
-async def get_thumb(videoid: str, player_username=None):
+async def get_thumb(videoid: str, title: str, player_username=None):
     videoid = extract_video_id(videoid)
 
     if player_username is None:
@@ -36,37 +34,11 @@ async def get_thumb(videoid: str, player_username=None):
     if os.path.exists(path):
         return path
 
-    # ===== 🔥 FIXED YT FETCH (NO UNKNOWN EVER) =====
-    data = {}
-
-    try:
-        search = VideosSearch(f"https://www.youtube.com/watch?v={videoid}", limit=1)
-        res = await search.next()
-        if res.get("result"):
-            data = res["result"][0]
-    except:
-        pass
-
-    if not data:
-        try:
-            search = VideosSearch(videoid, limit=1)
-            res = await search.next()
-            if res.get("result"):
-                data = res["result"][0]
-        except:
-            pass
-
-    title = data.get("title", "")
-    duration = data.get("duration", "3:00")
-    views = data.get("viewCount", {}).get("short", "Unknown")
-
-    # FINAL fallback (never blank)
-    if not title or title.lower() == "unknown":
-        title = f"{videoid[:8]} Music"
-
+    # 🎵 CLEAN TITLE (NO ERROR)
     title = re.sub(r"\W+", " ", title).title()
+    duration = "3:00"
 
-    # ===== THUMB =====
+    # 🖼 THUMB (ALWAYS WORK)
     thumb_url = f"https://img.youtube.com/vi/{videoid}/hqdefault.jpg"
     thumb_path = f"{CACHE_DIR}/{videoid}.jpg"
 
@@ -79,21 +51,14 @@ async def get_thumb(videoid: str, player_username=None):
     except:
         thumb_path = None
 
-    # ===== BG =====
-    bg = Image.new("RGB", (1280, 720), (10, 10, 10))
-
-    glow = Image.new("RGB", (1280, 720), (0, 0, 0))
-    g = ImageDraw.Draw(glow)
-    g.ellipse((150, 0, 1150, 720), fill=(255, 110, 30))
-    glow = glow.filter(ImageFilter.GaussianBlur(180))
-    bg = Image.blend(bg, glow, 0.5)
-
+    # 🖤 BLACK BG
+    bg = Image.new("RGB", (1280, 720), (0, 0, 0))
     draw = ImageDraw.Draw(bg)
 
-    # ===== THUMB =====
+    # 🖼 THUMB
     try:
         thumb = Image.open(thumb_path).resize((420, 420)).convert("RGBA")
-        thumb = ImageEnhance.Contrast(thumb).enhance(1.1)
+        thumb = ImageEnhance.Contrast(thumb).enhance(1.15)
         thumb = ImageEnhance.Brightness(thumb).enhance(1.05)
     except:
         thumb = Image.new("RGBA", (420, 420), (40, 40, 40, 255))
@@ -102,23 +67,22 @@ async def get_thumb(videoid: str, player_username=None):
     ImageDraw.Draw(mask).rounded_rectangle((0, 0, 420, 420), 40, fill=255)
     thumb.putalpha(mask)
 
-    # shadow
+    # 🔥 SHADOW
     shadow = Image.new("RGBA", (460, 460), (0, 0, 0, 0))
     sd = ImageDraw.Draw(shadow)
-    sd.rounded_rectangle((0, 0, 460, 460), 50, fill=(0, 0, 0, 150))
-    shadow = shadow.filter(ImageFilter.GaussianBlur(70))
+    sd.rounded_rectangle((0, 0, 460, 460), 50, fill=(0, 0, 0, 200))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(60))
     bg.paste(shadow, (100, 130), shadow)
 
-    # border
+    # 🔥 BORDER
     border = Image.new("RGBA", (460, 460), (0, 0, 0, 0))
     bd = ImageDraw.Draw(border)
-    bd.rounded_rectangle((0, 0, 460, 460), 50, outline=(255, 130, 60), width=4)
+    bd.rounded_rectangle((0, 0, 460, 460), 50, outline=(255, 120, 40), width=4)
 
-    bg.paste(border.filter(ImageFilter.GaussianBlur(40)), (100, 130), border)
     bg.paste(border, (100, 130), border)
     bg.paste(thumb, (120, 150), thumb)
 
-    # ===== FONTS =====
+    # 🅵🅾🅽🆃
     try:
         title_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 44)
         meta_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 30)
@@ -126,36 +90,35 @@ async def get_thumb(videoid: str, player_username=None):
     except:
         title_font = meta_font = small_font = ImageFont.load_default()
 
-    # badge
+    # 🔴 BADGE
     draw.rounded_rectangle((600, 140, 830, 195), 25, fill=(255, 120, 40))
     draw.text((635, 152), "NOW PLAYING", fill="white", font=small_font)
 
-    # title
+    # 🎵 TITLE
     title = trim(title, title_font, 550)
-    draw.text((601, 241), title, fill=(255,140,70), font=title_font)
     draw.text((600, 240), title, fill="white", font=title_font)
 
     draw.line((600, 300, 1000, 300), fill=(255, 120, 40), width=3)
 
-    # meta
+    # 📊 META
     draw.text((600, 330), f"Duration: {duration}", fill="white", font=meta_font)
-    draw.text((600, 370), f"Views: {views}", fill=(255, 150, 100), font=meta_font)
-    draw.text((600, 410), f"Player: @{player_username}", fill=(255, 150, 100), font=meta_font)
+    draw.text((600, 370), f"Player: @{player_username}", fill=(255, 140, 90), font=meta_font)
 
-    # progress
+    # 🎚 PROGRESS BAR
     bar_x, bar_y = 600, 480
     bar_w = 500
 
-    draw.rounded_rectangle((bar_x, bar_y, bar_x+bar_w, bar_y+10), 6, fill=(60,60,60))
+    draw.rounded_rectangle((bar_x, bar_y, bar_x+bar_w, bar_y+10), 6, fill=(70,70,70))
     draw.rounded_rectangle((bar_x, bar_y, bar_x+bar_w//2, bar_y+10), 6, fill=(255,120,40))
     draw.ellipse((bar_x+bar_w//2-8, bar_y-5, bar_x+bar_w//2+8, bar_y+15), fill="white")
 
     draw.text((600, 510), "00:00", fill="white", font=small_font)
     draw.text((1080, 510), duration, fill="white", font=small_font)
 
-    # footer
+    # 🔥 FOOTER
     draw.text((820, 660), "Powered by Mr Thakur", fill=(255, 120, 40), font=small_font)
 
+    # CLEANUP
     try:
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
