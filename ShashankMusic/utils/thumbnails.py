@@ -1,7 +1,9 @@
 import os
+import re
 import aiohttp
 import aiofiles
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from youtubesearchpython import VideosSearch
 
 CACHE_DIR = "cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -13,19 +15,33 @@ def extract_video_id(url: str) -> str:
     return url
 
 
+def trim(text, max_len=28):
+    return text if len(text) <= max_len else text[:max_len] + "..."
+
+
 async def get_thumb(videoid: str) -> str:
     videoid = extract_video_id(videoid)
     path = f"{CACHE_DIR}/{videoid}.png"
 
-    # ✅ Cache check
     if os.path.exists(path):
         return path
 
-    # ✅ Always working thumbnail
+    # ✅ Thumbnail (always works)
     thumb_url = f"https://img.youtube.com/vi/{videoid}/hqdefault.jpg"
-    thumb_path = f"{CACHE_DIR}/{videoid}_raw.jpg"
+    thumb_path = f"{CACHE_DIR}/{videoid}.jpg"
 
-    # Download thumbnail safely
+    # ===== FETCH TITLE =====
+    try:
+        search = VideosSearch(f"https://www.youtube.com/watch?v={videoid}", limit=1)
+        data = (await search.next())["result"][0]
+        title = data.get("title", "Unknown Song")
+    except:
+        title = "Unknown Song"
+
+    title = re.sub(r"\W+", " ", title).title()
+    title = trim(title, 30)
+
+    # ===== DOWNLOAD IMAGE =====
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(thumb_url) as resp:
@@ -34,17 +50,16 @@ async def get_thumb(videoid: str) -> str:
                         await f.write(await resp.read())
                 else:
                     return thumb_url
-    except Exception:
+    except:
         return thumb_url
 
     try:
         base = Image.open(thumb_path).resize((1280, 720)).convert("RGB")
-    except Exception:
+    except:
         return thumb_url
 
     # ===== BACKGROUND =====
-    bg = base.filter(ImageFilter.GaussianBlur(30))
-
+    bg = base.filter(ImageFilter.GaussianBlur(35))
     overlay = Image.new("RGBA", (1280, 720), (0, 0, 0, 180))
     bg = Image.alpha_composite(bg.convert("RGBA"), overlay)
 
@@ -55,15 +70,14 @@ async def get_thumb(videoid: str) -> str:
     card_x = (1280 - card_w) // 2
     card_y = (720 - card_h) // 2
 
-    card = Image.new("RGBA", (card_w, card_h), (25, 25, 25, 255))
+    card = Image.new("RGBA", (card_w, card_h), (20, 20, 20, 255))
     mask = Image.new("L", (card_w, card_h), 0)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, card_w, card_h), 40, fill=255)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, card_w, card_h), 50, fill=255)
 
     bg.paste(card, (card_x, card_y), mask)
 
     # ===== THUMB =====
     thumb = base.resize((720, 300))
-
     tmask = Image.new("L", thumb.size, 0)
     ImageDraw.Draw(tmask).rounded_rectangle((0, 0, 720, 300), 30, fill=255)
 
@@ -80,29 +94,27 @@ async def get_thumb(videoid: str) -> str:
     # ===== TEXT =====
     draw.text((card_x + card_w // 2, card_y + 360),
               "Now Playing",
-              fill="white",
+              fill="#bbbbbb",
               font=small_font,
               anchor="mm")
 
-    # Song name (videoid fallback)
-    song = f"{videoid[:15]}..."
     draw.text((card_x + card_w // 2, card_y + 410),
-              song,
+              title,
               fill="white",
               font=title_font,
               anchor="mm")
 
     # ===== PROGRESS BAR =====
-    bar_x = card_x + 110
+    bar_x = card_x + 100
     bar_y = card_y + 470
 
-    draw.line((bar_x, bar_y, bar_x + 600, bar_y), fill="gray", width=6)
-    draw.line((bar_x, bar_y, bar_x + 260, bar_y), fill="gold", width=6)
+    draw.line((bar_x, bar_y, bar_x + 600, bar_y), fill="#555555", width=6)
+    draw.line((bar_x, bar_y, bar_x + 260, bar_y), fill="#f5c518", width=6)
 
     draw.ellipse((bar_x + 250, bar_y - 8, bar_x + 270, bar_y + 8), fill="white")
 
-    draw.text((bar_x, bar_y + 15), "0:00", fill="white", font=small_font)
-    draw.text((bar_x + 550, bar_y + 15), "3:00", fill="white", font=small_font)
+    draw.text((bar_x, bar_y + 15), "1:24", fill="#cccccc", font=small_font)
+    draw.text((bar_x + 550, bar_y + 15), "3:45", fill="#cccccc", font=small_font)
 
     # ===== CLEANUP =====
     try:
