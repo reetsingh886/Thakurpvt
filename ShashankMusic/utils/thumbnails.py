@@ -1,105 +1,158 @@
 import os
-import re
-import aiohttp
 import aiofiles
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
+import aiohttp
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from py_yt import VideosSearch
+from config import YOUTUBE_IMG_URL
+from ShashankMusic import app   # ✅ FIXED
 
 CACHE_DIR = "cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 
-def clean_title(title):
-    title = re.sub(r"\W+", " ", str(title))
-    return title.strip().title()
-
-
-async def get_thumb(videoid: str, title="Unknown Track"):
+def trim(text, font, max_w):
     try:
-        videoid = str(videoid).split("v=")[-1].strip()
-        path = f"{CACHE_DIR}/{videoid}_final.png"
+        while font.getbbox(text)[2] > max_w:
+            text = text[:-1]
+        return text + "..."
+    except:
+        return text
 
-        if os.path.exists(path):
-            return path
 
-        # 🔥 YOUTUBE THUMB
-        thumb_url = f"https://img.youtube.com/vi/{videoid}/hqdefault.jpg"
-        thumb_path = f"{CACHE_DIR}/{videoid}.jpg"
+async def gen_thumb(videoid: str, player_username=None):
+    if player_username is None:
+        player_username = getattr(app, "username", "MusicBot")
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(thumb_url) as resp:
-                if resp.status != 200:
-                    return None
-                async with aiofiles.open(thumb_path, "wb") as f:
-                    await f.write(await resp.read())
-
-        base = Image.open(thumb_path).resize((1280, 720)).convert("RGBA")
-
-        # 🔥 STRONG BLUR BG (MATCH STYLE)
-        bg = base.filter(ImageFilter.GaussianBlur(40))
-        bg = ImageEnhance.Brightness(bg).enhance(0.55)
-
-        draw = ImageDraw.Draw(bg)
-
-        # 🔥 GLASS CARD (CENTER)
-        card_w, card_h = 720, 400
-        card_x = (1280 - card_w) // 2
-        card_y = 160
-
-        card = Image.new("RGBA", (card_w, card_h), (255, 255, 255, 170))
-
-        mask = Image.new("L", (card_w, card_h), 0)
-        ImageDraw.Draw(mask).rounded_rectangle((0, 0, card_w, card_h), 45, fill=255)
-
-        bg.paste(card, (card_x, card_y), mask)
-
-        # 🔥 THUMB INSIDE CARD
-        thumb = base.resize((520, 240))
-        tmask = Image.new("L", thumb.size, 0)
-        ImageDraw.Draw(tmask).rounded_rectangle((0, 0, 520, 240), 25, fill=255)
-
-        thumb_x = card_x + (card_w - 520) // 2
-        thumb_y = card_y + 30
-
-        bg.paste(thumb, (thumb_x, thumb_y), tmask)
-
-        # 🔥 FONT (CLEAN)
-        try:
-            title_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 42)
-            small_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 24)
-        except:
-            title_font = small_font = ImageFont.load_default()
-
-        title = clean_title(title)
-
-        # 🔥 TEXT (MATCH POSITION)
-        draw.text((card_x + 120, card_y + 290), title[:30], fill="black", font=title_font)
-        draw.text((card_x + 120, card_y + 335), "YouTube Music", fill="black", font=small_font)
-
-        # 🔥 PROGRESS BAR (EXACT STYLE)
-        bar_x = card_x + 100
-        bar_y = card_y + 370
-
-        draw.line((bar_x, bar_y, bar_x + 420, bar_y), fill=(200, 200, 200), width=6)
-        draw.line((bar_x, bar_y, bar_x + 200, bar_y), fill=(255, 0, 0), width=6)
-
-        draw.ellipse((bar_x + 195, bar_y - 7, bar_x + 210, bar_y + 7), fill=(255, 0, 0))
-
-        draw.text((bar_x, bar_y + 15), "00:00", fill="black", font=small_font)
-        draw.text((bar_x + 360, bar_y + 15), "3:00", fill="black", font=small_font)
-
-        # 🔥 PLAYER ICONS
-        draw.text((card_x + 230, card_y + 410), "⏮  ▶  ⏸  ⏭", fill="black", font=small_font)
-
-        # SAVE
-        bg.save(path)
-
-        try:
-            os.remove(thumb_path)
-        except:
-            pass
-
+    path = f"{CACHE_DIR}/{videoid}_final.png"
+    if os.path.exists(path):
         return path
 
-    except Exception as e:
-        print("THUMB ERROR:", e)
-        return None
+    # 🔍 YT FETCH
+    try:
+        results = VideosSearch(f"https://www.youtube.com/watch?v={videoid}", limit=1)
+        res = await results.next()
+
+        if not res or not res.get("result"):
+            raise ValueError
+
+        data = res["result"][0]
+
+        title = data.get("title", "Unknown")
+        thumb_url = (data.get("thumbnails") or [{}])[0].get("url", YOUTUBE_IMG_URL)
+        duration = data.get("duration", "Live")
+        views = (data.get("viewCount") or {}).get("short", "0")
+
+    except:
+        title, thumb_url, duration, views = "Unknown", YOUTUBE_IMG_URL, "Live", "0"
+
+    thumb_path = f"{CACHE_DIR}/{videoid}.png"
+
+    # ⬇ DOWNLOAD
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.get(thumb_url) as r:
+                if r.status == 200:
+                    async with aiofiles.open(thumb_path, "wb") as f:
+                        await f.write(await r.read())
+                else:
+                    raise Exception
+    except:
+        thumb_path = None
+
+    # 🖤 BLACK BG
+    bg = Image.new("RGB", (1280, 720), (0, 0, 0))
+
+    # 🔥 PREMIUM GLOW
+    glow = Image.new("RGB", (1280, 720), (0, 0, 0))
+    g = ImageDraw.Draw(glow)
+    g.ellipse((200, 50, 1100, 750), fill=(255, 120, 40))
+    glow = glow.filter(ImageFilter.GaussianBlur(200))
+    bg = Image.blend(bg, glow, 0.45)
+
+    draw = ImageDraw.Draw(bg)
+
+    # 🖼 THUMB
+    try:
+        thumb = Image.open(thumb_path).resize((420, 420)).convert("RGBA")
+    except:
+        thumb = Image.new("RGBA", (420, 420), (40, 40, 40, 255))
+
+    mask = Image.new("L", (420, 420), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, 420, 420), 40, fill=255)
+    thumb.putalpha(mask)
+
+    # SHADOW
+    shadow = Image.new("RGBA", (460, 460), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(shadow)
+    sd.rounded_rectangle((0, 0, 460, 460), 50, fill=(0, 0, 0, 180))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(50))
+    bg.paste(shadow, (110, 140), shadow)
+
+    # BORDER
+    border = Image.new("RGBA", (460, 460), (0, 0, 0, 0))
+    bd = ImageDraw.Draw(border)
+    bd.rounded_rectangle((0, 0, 460, 460), 50, outline=(255, 120, 40), width=5)
+
+    glow1 = border.filter(ImageFilter.GaussianBlur(30))
+    glow2 = border.filter(ImageFilter.GaussianBlur(60))
+
+    bg.paste(glow2, (100, 130), glow2)
+    bg.paste(glow1, (100, 130), glow1)
+    bg.paste(border, (100, 130), border)
+    bg.paste(thumb, (120, 150), thumb)
+
+    # 🔤 FONT PATH FIX
+    try:
+        title_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 44)
+        meta_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 30)
+        small_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 26)
+    except:
+        title_font = meta_font = small_font = ImageFont.load_default()
+
+    # NOW PLAYING
+    draw.rounded_rectangle((600, 140, 830, 195), 25, fill=(255, 120, 40))
+    draw.text((635, 152), "NOW PLAYING", fill="white", font=small_font)
+
+    # TITLE
+    title = trim(title, title_font, 550)
+    draw.text((602, 242), title, fill=(255,120,40), font=title_font)
+    draw.text((600, 240), title, fill="white", font=title_font)
+
+    draw.line((600, 300, 1000, 300), fill=(255, 120, 40), width=3)
+
+    # META
+    draw.text((600, 330), f"Duration: {duration}", fill="white", font=meta_font)
+    draw.text((600, 370), f"Views: {views}", fill=(255, 140, 90), font=meta_font)
+    draw.text((600, 410), f"Player: @{player_username}", fill=(255, 140, 90), font=meta_font)
+
+    # BAR
+    bar_x, bar_y = 600, 480
+    bar_w = 500
+
+    draw.rounded_rectangle((bar_x, bar_y, bar_x+bar_w, bar_y+10), 6, fill=(70,70,70))
+    draw.rounded_rectangle((bar_x, bar_y, bar_x+bar_w//2, bar_y+10), 6, fill=(255,120,40))
+    draw.ellipse((bar_x+bar_w//2-8, bar_y-5, bar_x+bar_w//2+8, bar_y+15), fill="white")
+
+    draw.text((600, 510), "00:00", fill="white", font=small_font)
+    draw.text((1080, 510), duration, fill="white", font=small_font)
+
+    # REFLECTION
+    reflection = bg.crop((0, 350, 1280, 720)).transpose(Image.FLIP_TOP_BOTTOM)
+    reflection = reflection.filter(ImageFilter.GaussianBlur(30))
+
+    fade = Image.new("L", reflection.size, 120)
+    reflection.putalpha(fade)
+
+    bg.paste(reflection, (0, 500), reflection)
+
+    # BRANDING
+    draw.text((820, 660), "Powered by Mr Thakur", fill=(255, 120, 40), font=small_font)
+
+    try:
+        if thumb_path and os.path.exists(thumb_path):
+            os.remove(thumb_path)
+    except:
+        pass
+
+    bg.save(path)
+    return path
