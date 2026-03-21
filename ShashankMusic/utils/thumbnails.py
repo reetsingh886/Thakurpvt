@@ -24,29 +24,26 @@ def trim(text, font, max_w):
         return text
 
 
-# 🔥 FINAL FLEXIBLE FUNCTION (NO TYPE ERROR EVER)
 async def get_thumb(videoid: str, title=None, player_username=None):
     videoid = extract_video_id(videoid)
 
-    # ✅ auto username
     if player_username is None:
         player_username = getattr(app, "username", "MusicBot")
 
-    # ✅ fallback title (VERY IMPORTANT)
+    # 🎵 FIX TITLE
     if not title:
         title = videoid
 
-    # clean title
     title = re.sub(r"\W+", " ", str(title)).title()
 
-    if len(title) > 30:
-        title = title[:30] + "..."
+    if len(title) > 35:
+        title = title[:35] + "..."
 
-    path = f"{CACHE_DIR}/{videoid}_final.png"
+    path = f"{CACHE_DIR}/{videoid}_silver.png"
     if os.path.exists(path):
         return path
 
-    # 🖼 THUMB (ALWAYS WORKING)
+    # 🖼 THUMB
     thumb_url = f"https://img.youtube.com/vi/{videoid}/hqdefault.jpg"
     thumb_path = f"{CACHE_DIR}/{videoid}.jpg"
 
@@ -59,33 +56,45 @@ async def get_thumb(videoid: str, title=None, player_username=None):
     except:
         thumb_path = None
 
-    # 🖤 BLACK BG
-    bg = Image.new("RGB", (1280, 720), (0, 0, 0))
+    # 🪙 SILVER GRADIENT BG
+    bg = Image.new("RGB", (1280, 720), (30, 30, 30))
     draw = ImageDraw.Draw(bg)
 
-    # 🖼 THUMB IMAGE
+    for i in range(720):
+        shade = int(30 + (i / 720) * 80)
+        draw.line((0, i, 1280, i), fill=(shade, shade, shade))
+
+    # glow
+    glow = Image.new("RGB", (1280, 720), (0, 0, 0))
+    g = ImageDraw.Draw(glow)
+    g.ellipse((200, 0, 1100, 720), fill=(200, 200, 200))
+    glow = glow.filter(ImageFilter.GaussianBlur(180))
+    bg = Image.blend(bg, glow, 0.3)
+
+    draw = ImageDraw.Draw(bg)
+
+    # 🖼 THUMB
     try:
         thumb = Image.open(thumb_path).resize((420, 420)).convert("RGBA")
-        thumb = ImageEnhance.Contrast(thumb).enhance(1.15)
-        thumb = ImageEnhance.Brightness(thumb).enhance(1.05)
+        thumb = ImageEnhance.Contrast(thumb).enhance(1.2)
     except:
-        thumb = Image.new("RGBA", (420, 420), (40, 40, 40, 255))
+        thumb = Image.new("RGBA", (420, 420), (50, 50, 50, 255))
 
     mask = Image.new("L", (420, 420), 0)
     ImageDraw.Draw(mask).rounded_rectangle((0, 0, 420, 420), 40, fill=255)
     thumb.putalpha(mask)
 
-    # 🔥 SHADOW
+    # shadow
     shadow = Image.new("RGBA", (460, 460), (0, 0, 0, 0))
     sd = ImageDraw.Draw(shadow)
-    sd.rounded_rectangle((0, 0, 460, 460), 50, fill=(0, 0, 0, 200))
+    sd.rounded_rectangle((0, 0, 460, 460), 50, fill=(0, 0, 0, 180))
     shadow = shadow.filter(ImageFilter.GaussianBlur(60))
     bg.paste(shadow, (100, 130), shadow)
 
-    # 🔥 BORDER
+    # border
     border = Image.new("RGBA", (460, 460), (0, 0, 0, 0))
     bd = ImageDraw.Draw(border)
-    bd.rounded_rectangle((0, 0, 460, 460), 50, outline=(255, 120, 40), width=4)
+    bd.rounded_rectangle((0, 0, 460, 460), 50, outline=(220, 220, 220), width=4)
 
     bg.paste(border, (100, 130), border)
     bg.paste(thumb, (120, 150), thumb)
@@ -98,35 +107,34 @@ async def get_thumb(videoid: str, title=None, player_username=None):
     except:
         title_font = meta_font = small_font = ImageFont.load_default()
 
-    # 🔴 BADGE
-    draw.rounded_rectangle((600, 140, 830, 195), 25, fill=(255, 120, 40))
-    draw.text((635, 152), "NOW PLAYING", fill="white", font=small_font)
+    # BADGE
+    draw.rounded_rectangle((600, 140, 830, 195), 25, fill=(180, 180, 180))
+    draw.text((635, 152), "NOW PLAYING", fill="black", font=small_font)
 
-    # 🎵 TITLE
+    # TITLE
     title = trim(title, title_font, 550)
     draw.text((600, 240), title, fill="white", font=title_font)
 
-    draw.line((600, 300, 1000, 300), fill=(255, 120, 40), width=3)
+    draw.line((600, 300, 1000, 300), fill=(200, 200, 200), width=3)
 
-    # 📊 META
+    # META
     draw.text((600, 330), "Duration: 3:00", fill="white", font=meta_font)
-    draw.text((600, 370), f"Player: @{player_username}", fill=(255, 140, 90), font=meta_font)
+    draw.text((600, 370), f"Player: @{player_username}", fill=(220, 220, 220), font=meta_font)
 
-    # 🎚 BAR
+    # PROGRESS BAR
     bar_x, bar_y = 600, 480
     bar_w = 500
 
-    draw.rounded_rectangle((bar_x, bar_y, bar_x+bar_w, bar_y+10), 6, fill=(70,70,70))
-    draw.rounded_rectangle((bar_x, bar_y, bar_x+bar_w//2, bar_y+10), 6, fill=(255,120,40))
+    draw.rounded_rectangle((bar_x, bar_y, bar_x+bar_w, bar_y+10), 6, fill=(80,80,80))
+    draw.rounded_rectangle((bar_x, bar_y, bar_x+bar_w//2, bar_y+10), 6, fill=(200,200,200))
     draw.ellipse((bar_x+bar_w//2-8, bar_y-5, bar_x+bar_w//2+8, bar_y+15), fill="white")
 
     draw.text((600, 510), "00:00", fill="white", font=small_font)
     draw.text((1080, 510), "3:00", fill="white", font=small_font)
 
-    # 🔥 FOOTER
-    draw.text((820, 660), "Powered by Mr Thakur", fill=(255, 120, 40), font=small_font)
+    # FOOTER
+    draw.text((820, 660), "Powered by Mr Thakur", fill=(200, 200, 200), font=small_font)
 
-    # CLEANUP
     try:
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
