@@ -22,7 +22,7 @@ THUMB_Y = PANEL_Y + INNER_OFFSET
 
 TITLE_X = 377
 META_X = 377
-TITLE_Y = THUMB_Y + THUMB_H + 10
+TITLE_Y = THUMB_Y + THUMB_H + 25
 META_Y = TITLE_Y + 45
 
 BAR_X, BAR_Y = 388, META_Y + 45
@@ -33,7 +33,7 @@ ICONS_W, ICONS_H = 415, 45
 ICONS_X = PANEL_X + (PANEL_W - ICONS_W) // 2
 ICONS_Y = BAR_Y + 48
 
-MAX_TITLE_WIDTH = 580
+MAX_TITLE_WIDTH = 709
 
 def trim_to_width(text: str, font: ImageFont.FreeTypeFont, max_w: int) -> str:
     ellipsis = "…"
@@ -93,7 +93,7 @@ async def get_thumb(videoid: str) -> str:
     # Draw details
     draw = ImageDraw.Draw(bg)
     try:
-        title_font = ImageFont.truetype("ShashankMusic/assets/assets/font2.ttf", 32)
+        title_font = ImageFont.truetype("ShashankMusic/assets/assets/font2.ttf", 55)
         regular_font = ImageFont.truetype("ShashankMusic/assets/assets/font.ttf", 18)
     except OSError:
         title_font = regular_font = ImageFont.load_default()
