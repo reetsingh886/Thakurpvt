@@ -5,7 +5,6 @@ import aiohttp
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 from unidecode import unidecode
 from py_yt import VideosSearch
-from ShashankMusic import app
 from config import YOUTUBE_IMG_URL
 
 CACHE_DIR = "cache"
@@ -13,9 +12,7 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 
 
 def changeImageSize(maxWidth, maxHeight, image):
-    widthRatio = maxWidth / image.size[0]
-    heightRatio = maxHeight / image.size[1]
-    return image.resize((int(widthRatio * image.size[0]), int(heightRatio * image.size[1])))
+    return image.resize((maxWidth, maxHeight))
 
 
 def clean(text):
@@ -36,7 +33,7 @@ async def get_thumb(videoid):
     if os.path.exists(final_path):
         return final_path
 
-    # 🎯 DATA FETCH
+    # 🎯 FETCH DATA
     try:
         data = (await VideosSearch(f"https://www.youtube.com/watch?v={videoid}", limit=1).next())["result"][0]
 
@@ -53,76 +50,70 @@ async def get_thumb(videoid):
         title, duration, views, channel = "Shashank Music", "3:00", "0", "Channel"
         thumbnail = YOUTUBE_IMG_URL
 
-    # 🎯 DOWNLOAD THUMB
-    thumb_path = f"{CACHE_DIR}/{videoid}.png"
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(thumbnail) as resp:
-                if resp.status == 200:
-                    async with aiofiles.open(thumb_path, "wb") as f:
-                        await f.write(await resp.read())
-    except:
-        return YOUTUBE_IMG_URL
+    # 🎯 DOWNLOAD
+    thumb_path = f"{CACHE_DIR}/{videoid}.jpg"
 
-    try:
-        youtube = Image.open(thumb_path)
-    except:
-        return YOUTUBE_IMG_URL
+    async with aiohttp.ClientSession() as session:
+        async with session.get(thumbnail) as r:
+            if r.status == 200:
+                async with aiofiles.open(thumb_path, "wb") as f:
+                    await f.write(await r.read())
 
-    # 🎯 BACKGROUND
-    image = changeImageSize(1280, 720, youtube)
-    bg = image.filter(ImageFilter.GaussianBlur(25))
-    bg = ImageEnhance.Brightness(bg).enhance(0.5)
+    base = Image.open(thumb_path).resize((1280, 720)).convert("RGBA")
+
+    # 🔥 BACKGROUND
+    bg = base.filter(ImageFilter.GaussianBlur(25))
+    bg = ImageEnhance.Brightness(bg).enhance(0.45)
 
     draw = ImageDraw.Draw(bg)
 
-    # 🎯 FONT SAFE
-    try:
-        title_font = ImageFont.truetype("ShashankMusic/assets/font3.ttf", 50)
-        small_font = ImageFont.truetype("ShashankMusic/assets/font2.ttf", 28)
-    except:
-        title_font = small_font = ImageFont.load_default()
-
-    # 🔥 RECTANGLE THUMB (FIXED)
-    thumb = youtube.resize((450, 300))
-
+    # 🎯 LEFT IMAGE
+    thumb = base.resize((480, 300))
     mask = Image.new("L", thumb.size, 0)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, 450, 300), 25, fill=255)
-
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, 480, 300), 30, fill=255)
     bg.paste(thumb, (120, 200), mask)
 
-    # 🎯 TEXT RIGHT SIDE
-    x = 620
+    # 🔥 BIG FONTS
+    try:
+        title_font = ImageFont.truetype("ShashankMusic/assets/font3.ttf", 70)
+        meta_font = ImageFont.truetype("ShashankMusic/assets/font2.ttf", 36)
+        small_font = ImageFont.truetype("ShashankMusic/assets/font2.ttf", 30)
+    except:
+        title_font = meta_font = small_font = ImageFont.load_default()
 
-    title = trim(title, title_font, 550)
+    x = 650
 
+    title = trim(title, title_font, 520)
+
+    # 🔥 SHADOW TITLE (LOOK PREMIUM)
+    draw.text((x+3, 223), title, fill="black", font=title_font)
     draw.text((x, 220), title, fill="white", font=title_font)
 
-    draw.text((x, 300), f"Duration: {duration}", fill=(255,140,0), font=small_font)
-    draw.text((x, 340), f"Views: {views}", fill=(255,140,0), font=small_font)
-    draw.text((x, 380), f"Channel: {channel}", fill=(255,140,0), font=small_font)
-
-    # 🎯 PROGRESS BAR
-    total = 420
-    done = int(total * 0.5)
-
-    bar_y = 450
-
-    draw.line((x, bar_y, x + total, bar_y), fill=(120,120,120), width=6)
-    draw.line((x, bar_y, x + done, bar_y), fill=(255,140,0), width=8)
-
-    draw.ellipse((x + done - 8, bar_y - 8, x + done + 8, bar_y + 8), fill="white")
-
-    draw.text((x, bar_y + 20), "0:00", fill="white", font=small_font)
-    draw.text((x + total - 70, bar_y + 20), duration, fill="white", font=small_font)
+    # 🎯 META BIG
+    draw.text((x, 320), f"Duration: {duration}", fill=(255,140,0), font=meta_font)
+    draw.text((x, 370), f"Views: {views}", fill=(255,140,0), font=meta_font)
+    draw.text((x, 420), f"Channel: {channel}", fill=(255,140,0), font=meta_font)
 
     # 🎯 NOW PLAYING
     draw.text((x, 170), "NOW PLAYING", fill=(255,140,0), font=small_font)
 
-    # 🎯 ICONS SAFE
+    # 🎯 PROGRESS BAR
+    total = 460
+    done = int(total * 0.5)
+    bar_y = 520
+
+    draw.line((x, bar_y, x + total, bar_y), fill=(120,120,120), width=6)
+    draw.line((x, bar_y, x + done, bar_y), fill=(255,140,0), width=8)
+
+    draw.ellipse((x + done - 9, bar_y - 9, x + done + 9, bar_y + 9), fill="white")
+
+    draw.text((x, bar_y + 20), "0:00", fill="white", font=small_font)
+    draw.text((x + total - 80, bar_y + 20), duration, fill="white", font=small_font)
+
+    # 🎯 ICONS
     try:
-        icons = Image.open("ShashankMusic/assets/play_icons.png").resize((400, 60))
-        bg.paste(icons, (x, 500), icons)
+        icons = Image.open("ShashankMusic/assets/play_icons.png").resize((420, 65))
+        bg.paste(icons, (x, 570), icons)
     except:
         pass
 
