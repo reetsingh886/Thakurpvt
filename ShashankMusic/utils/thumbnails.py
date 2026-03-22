@@ -113,8 +113,8 @@ async def get_thumb(videoid: str) -> str:
     draw.text((BAR_X, BAR_Y+15), "1:24", fill="white", font=font_time)
     draw.text((BAR_X+BAR_W-60, BAR_Y+15), "3:45", fill="white", font=font_time)
 
-    # CONTROLS
-    controls = "⏮   ⏸   ⏭"
+    # CONTROLS (FIXED - NO UNICODE ERROR)
+    controls = "<<   ||   >>"
     cw = font_big.getlength(controls)
 
     draw.text(
