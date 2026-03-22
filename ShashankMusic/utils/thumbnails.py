@@ -1,3 +1,4 @@
+
 import os
 import aiofiles
 import aiohttp
@@ -25,7 +26,7 @@ async def gen_thumb(videoid: str, title="Now Playing", duration="Live", views="U
     if os.path.exists(path):
         return path
 
-    # ✅ DIRECT THUMB (NO API / NO ERROR)
+    # ✅ DIRECT YT THUMB (NO LIBRARY)
     thumb_url = f"https://img.youtube.com/vi/{videoid}/hqdefault.jpg"
     thumb_path = f"{CACHE_DIR}/{videoid}.jpg"
 
@@ -38,7 +39,7 @@ async def gen_thumb(videoid: str, title="Now Playing", duration="Live", views="U
     except:
         thumb_path = None
 
-    # 🖤 CLEAN DARK BG
+    # 🖤 CLEAN BG
     bg = Image.new("RGB", (1280, 720), (15, 10, 10))
     draw = ImageDraw.Draw(bg)
 
@@ -60,7 +61,7 @@ async def gen_thumb(videoid: str, title="Now Playing", duration="Live", views="U
     bg.paste(border, (100, 130), border)
     bg.paste(thumb, (120, 150), thumb)
 
-    # 🔤 FONTS
+    # 🔤 FONT
     try:
         title_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 44)
         meta_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 30)
@@ -76,6 +77,7 @@ async def gen_thumb(videoid: str, title="Now Playing", duration="Live", views="U
     title = trim(title, title_font, 550)
     draw.text((600, 230), title, fill="white", font=title_font)
 
+    # underline
     draw.line((600, 290, 1000, 290), fill=(255, 60, 60), width=3)
 
     # 📊 META
@@ -105,3 +107,8 @@ async def gen_thumb(videoid: str, title="Now Playing", duration="Live", views="U
 
     bg.save(path)
     return path
+
+
+# ✅ IMPORTANT FIX (GET_THUMB)
+async def get_thumb(videoid, title="Now Playing", duration="Live", views="Unknown", player_username=None):
+    return await gen_thumb(videoid, title, duration, views, player_username)
