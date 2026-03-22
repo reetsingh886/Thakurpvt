@@ -1,114 +1,158 @@
-
 import os
-import aiofiles
+import random
 import aiohttp
-from PIL import Image, ImageDraw, ImageFont
+import aiofiles
+import traceback
+from pathlib import Path
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from py_yt import VideosSearch
 from ShashankMusic import app
+import math
 
-CACHE_DIR = "cache"
-os.makedirs(CACHE_DIR, exist_ok=True)
+CACHE_DIR = Path("cache")
+CACHE_DIR.mkdir(exist_ok=True)
+
+CANVAS_W, CANVAS_H = 1320, 760
+
+FONT_REGULAR_PATH = "ShashankMusic/assets/font2.ttf"
+FONT_BOLD_PATH = "ShashankMusic/assets/font3.ttf"
+DEFAULT_THUMB = "ShashankMusic/assets/ShashankBots.jpg"
 
 
-def trim(text, font, max_w):
+def wrap_text(draw, text, font, max_width):
+    words = text.split()
+    lines = []
+    current_line = ""
+    
+    for word in words:
+        test_line = current_line + (" " if current_line else "") + word
+        if draw.textlength(test_line, font=font) <= max_width:
+            current_line = test_line
+        else:
+            if current_line:
+                lines.append(current_line)
+            current_line = word
+    
+    if current_line:
+        lines.append(current_line)
+    
+    return lines[:2]
+
+
+def random_gradient():
+    colors = [
+        [(15, 12, 41), (48, 43, 99), (36, 36, 62)],
+        [(10, 10, 10), (35, 35, 40), (20, 20, 25)],
+        [(26, 26, 46), (56, 56, 86), (40, 40, 60)],
+        [(20, 25, 35), (45, 50, 70), (30, 35, 50)],
+        [(12, 17, 30), (38, 43, 65), (25, 30, 45)],
+    ]
+    return random.choice(colors)
+
+
+def apply_gradient(canvas, colors):
+    overlay = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    
+    for y in range(CANVAS_H):
+        progress = y / CANVAS_H
+        
+        if progress < 0.4:
+            t = progress / 0.4
+            r = int(colors[0][0] * (1-t) + colors[1][0] * t)
+            g = int(colors[0][1] * (1-t) + colors[1][1] * t)
+            b = int(colors[0][2] * (1-t) + colors[1][2] * t)
+        else:
+            t = (progress - 0.4) / 0.6
+            r = int(colors[1][0] * (1-t) + colors[2][0] * t)
+            g = int(colors[1][1] * (1-t) + colors[2][1] * t)
+            b = int(colors[1][2] * (1-t) + colors[2][2] * t)
+        
+        draw.line([(0, y), (CANVAS_W, y)], fill=(r, g, b, 255))
+    
+    return Image.alpha_composite(canvas, overlay)
+
+
+def create_shape_mask(size):
+    mask = Image.new("L", (size, size), 0)
+    draw = ImageDraw.Draw(mask)
+    draw.ellipse([0, 0, size, size], fill=255)
+    return mask
+
+
+async def gen_thumb(videoid: str):
+    url = f"https://www.youtube.com/watch?v={videoid}"
+    thumb_path = None
+    
     try:
-        while font.getbbox(text)[2] > max_w:
-            text = text[:-1]
-        return text + "..."
-    except:
-        return text
+        results = VideosSearch(url, limit=1)
+        result = (await results.next())["result"][0]
 
+        title = result.get("title", "Unknown Title")
+        duration = result.get("duration", "Unknown")
+        thumburl = result["thumbnails"][0]["url"].split("?")[0]
+        views = result.get("viewCount", {}).get("short", "Unknown Views")
+        channel = result.get("channel", {}).get("name", "Unknown Channel")
 
-async def gen_thumb(videoid: str, title="Now Playing", duration="Live", views="Unknown", player_username=None):
-    if player_username is None:
-        player_username = getattr(app, "username", "MusicBot")
-
-    path = f"{CACHE_DIR}/{videoid}_final.png"
-    if os.path.exists(path):
-        return path
-
-    # ✅ DIRECT YT THUMB (NO LIBRARY)
-    thumb_url = f"https://img.youtube.com/vi/{videoid}/hqdefault.jpg"
-    thumb_path = f"{CACHE_DIR}/{videoid}.jpg"
-
-    try:
-        async with aiohttp.ClientSession() as s:
-            async with s.get(thumb_url) as r:
-                if r.status == 200:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(thumburl) as resp:
+                if resp.status == 200:
+                    thumb_path = CACHE_DIR / f"{videoid}.png"
                     async with aiofiles.open(thumb_path, "wb") as f:
-                        await f.write(await r.read())
+                        await f.write(await resp.read())
+
+        base_img = Image.open(thumb_path if thumb_path else DEFAULT_THUMB).convert("RGBA")
+
     except:
-        thumb_path = None
-
-    # 🖤 CLEAN BG
-    bg = Image.new("RGB", (1280, 720), (15, 10, 10))
-    draw = ImageDraw.Draw(bg)
-
-    # 🖼 THUMB
-    try:
-        thumb = Image.open(thumb_path).resize((420, 420)).convert("RGBA")
-    except:
-        thumb = Image.new("RGBA", (420, 420), (40, 40, 40, 255))
-
-    mask = Image.new("L", (420, 420), 0)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, 420, 420), 40, fill=255)
-    thumb.putalpha(mask)
-
-    # 🔴 BORDER
-    border = Image.new("RGBA", (460, 460), (0, 0, 0, 0))
-    bd = ImageDraw.Draw(border)
-    bd.rounded_rectangle((0, 0, 460, 460), 50, outline=(255, 60, 60), width=8)
-
-    bg.paste(border, (100, 130), border)
-    bg.paste(thumb, (120, 150), thumb)
-
-    # 🔤 FONT
-    try:
-        title_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 44)
-        meta_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 30)
-        small_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 26)
-    except:
-        title_font = meta_font = small_font = ImageFont.load_default()
-
-    # 🔴 NOW PLAYING
-    draw.rounded_rectangle((600, 140, 820, 190), 25, fill=(255, 60, 60))
-    draw.text((630, 150), "NOW PLAYING", fill="white", font=small_font)
-
-    # 🎵 TITLE
-    title = trim(title, title_font, 550)
-    draw.text((600, 230), title, fill="white", font=title_font)
-
-    # underline
-    draw.line((600, 290, 1000, 290), fill=(255, 60, 60), width=3)
-
-    # 📊 META
-    draw.text((600, 320), f"Duration: {duration}", fill="white", font=meta_font)
-    draw.text((600, 360), f"Views: {views}", fill=(255, 80, 80), font=meta_font)
-    draw.text((600, 400), f"Player: @{player_username}", fill=(255, 80, 80), font=meta_font)
-
-    # 🎚 BAR
-    bar_x, bar_y = 600, 470
-    bar_w = 500
-
-    draw.rounded_rectangle((bar_x, bar_y, bar_x+bar_w, bar_y+12), 6, fill=(80,80,80))
-    draw.rounded_rectangle((bar_x, bar_y, bar_x+bar_w//2, bar_y+12), 6, fill=(255,60,60))
-    draw.ellipse((bar_x+bar_w//2-8, bar_y-4, bar_x+bar_w//2+8, bar_y+16), fill="white")
-
-    draw.text((600, 510), "00:00", fill="white", font=small_font)
-    draw.text((1080, 510), duration, fill="white", font=small_font)
-
-    # ⚡ BRAND
-    draw.text((900, 660), "Powered by Mr Thakur", fill=(180,180,180), font=small_font)
+        base_img = Image.open(DEFAULT_THUMB).convert("RGBA")
+        title = "ShashankMusic"
+        duration = "Unknown"
+        views = "Unknown Views"
+        channel = "ShashankBots"
 
     try:
-        if thumb_path and os.path.exists(thumb_path):
+        canvas = Image.new("RGBA", (CANVAS_W, CANVAS_H))
+        canvas = apply_gradient(canvas, random_gradient())
+
+        art_size = 450
+        art_x = 80
+        art_y = (CANVAS_H - art_size) // 2
+
+        mask = create_shape_mask(art_size)
+        art = base_img.resize((art_size, art_size))
+        art.putalpha(mask)
+
+        canvas.paste(art, (art_x, art_y), art)
+
+        draw = ImageDraw.Draw(canvas)
+
+        # BRAND NAME
+        brand_font = ImageFont.truetype(FONT_BOLD_PATH, 42)
+        draw.text((40, 30), app.username, fill="white", font=brand_font)
+
+        # NOW PLAYING
+        np_font = ImageFont.truetype(FONT_BOLD_PATH, 60)
+        draw.text((600, 150), "NOW PLAYING", fill=(120, 180, 255), font=np_font)
+
+        # TITLE
+        title_font = ImageFont.truetype(FONT_BOLD_PATH, 40)
+        draw.text((600, 260), title[:40], fill="white", font=title_font)
+
+        # META
+        meta_font = ImageFont.truetype(FONT_REGULAR_PATH, 30)
+        draw.text((600, 350), f"Views: {views}", fill="white", font=meta_font)
+        draw.text((600, 400), f"Duration: {duration}", fill="white", font=meta_font)
+        draw.text((600, 450), f"Channel: {channel}", fill="white", font=meta_font)
+
+        out = CACHE_DIR / f"{videoid}_final.png"
+        canvas.save(out)
+
+        if thumb_path and thumb_path.exists():
             os.remove(thumb_path)
-    except:
-        pass
 
-    bg.save(path)
-    return path
+        return str(out)
 
-
-# ✅ IMPORTANT FIX (GET_THUMB)
-async def get_thumb(videoid, title="Now Playing", duration="Live", views="Unknown", player_username=None):
-    return await gen_thumb(videoid, title, duration, views, player_username)
+    except Exception as e:
+        print(e)
+        traceback.print_exc()
+        return None
