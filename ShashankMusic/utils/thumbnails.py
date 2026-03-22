@@ -3,7 +3,7 @@ import re
 import aiofiles
 import aiohttp
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
-from youtubesearchpython import VideosSearch   # ✅ FIXED
+from py_yt import VideosSearch
 from config import YOUTUBE_IMG_URL
 
 CACHE_DIR = "cache"
@@ -35,125 +35,121 @@ ICONS_Y = BAR_Y + 48
 MAX_TITLE_WIDTH = 580
 
 
-def clean(text):
-    return re.sub(r"[^\x00-\x7F]+", "", text)
-
-
-def trim_to_width(text, font, max_w):
+def trim_to_width(text: str, font: ImageFont.FreeTypeFont, max_w: int) -> str:
+    ellipsis = "…"
     if font.getlength(text) <= max_w:
         return text
-    for i in range(len(text), 0, -1):
-        if font.getlength(text[:i] + "...") <= max_w:
-            return text[:i] + "..."
-    return text[:20]
+    for i in range(len(text) - 1, 0, -1):
+        if font.getlength(text[:i] + ellipsis) <= max_w:
+            return text[:i] + ellipsis
+    return ellipsis
 
 
-async def get_thumb(videoid: str):
-
-    cache_path = os.path.join(CACHE_DIR, f"{videoid}.png")
+async def get_thumb(videoid: str) -> str:
+    cache_path = os.path.join(CACHE_DIR, f"{videoid}_v4.png")
     if os.path.exists(cache_path):
         return cache_path
 
-    # 🎯 FIXED YT DATA
+    # YouTube video data fetch (UNCHANGED)
+    results = VideosSearch(f"https://www.youtube.com/watch?v={videoid}", limit=1)
     try:
-        results = VideosSearch(videoid, limit=1)
-        data = (await results.next())["result"][0]
+        results_data = await results.next()
+        result_items = results_data.get("result", [])
+        if not result_items:
+            raise ValueError("No results found.")
 
-        title = clean(data.get("title", "Unknown"))
-        duration = data.get("duration", "3:00")
-        views = data.get("viewCount", {}).get("short", "0")
+        data = result_items[0]
 
-    except:
-        title = "Shashank Music"
-        duration = "3:00"
-        views = "0"
+        title = re.sub(r"\W+", " ", data.get("title", "Unsupported Title")).title()
+        thumbnail = data.get("thumbnails", [{}])[0].get("url", YOUTUBE_IMG_URL)
+        duration = data.get("duration")
+        views = data.get("viewCount", {}).get("short", "Unknown Views")
 
-    # 🎯 FIXED THUMB (NO FAIL)
-    thumbnail = f"https://img.youtube.com/vi/{videoid}/hqdefault.jpg"
+    except Exception:
+        title, thumbnail, duration, views = "Unsupported Title", YOUTUBE_IMG_URL, None, "Unknown Views"
 
-    thumb_path = os.path.join(CACHE_DIR, f"{videoid}.jpg")
+    is_live = not duration or str(duration).strip().lower() in {"", "live", "live now"}
+    duration_text = "Live" if is_live else duration or "Unknown Mins"
 
+    # Download thumbnail
+    thumb_path = os.path.join(CACHE_DIR, f"thumb{videoid}.png")
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(thumbnail) as resp:
                 if resp.status == 200:
                     async with aiofiles.open(thumb_path, "wb") as f:
                         await f.write(await resp.read())
-    except:
+    except Exception:
         return YOUTUBE_IMG_URL
 
-    # 🖼️ BACKGROUND
+    # Create base image
     base = Image.open(thumb_path).resize((1280, 720)).convert("RGBA")
-    bg = base.filter(ImageFilter.GaussianBlur(20))
-    bg = ImageEnhance.Brightness(bg).enhance(0.6)
-    bg = ImageEnhance.Color(bg).enhance(1.3)
+    bg = ImageEnhance.Brightness(base.filter(ImageFilter.BoxBlur(10))).enhance(0.6)
 
-    # 🔥 PANEL
-    panel = Image.new("RGBA", (PANEL_W, PANEL_H), (255, 255, 255, TRANSPARENCY))
+    # Frosted glass panel
+    panel_area = bg.crop((PANEL_X, PANEL_Y, PANEL_X + PANEL_W, PANEL_Y + PANEL_H))
+    overlay = Image.new("RGBA", (PANEL_W, PANEL_H), (255, 255, 255, TRANSPARENCY))
+    frosted = Image.alpha_composite(panel_area, overlay)
+
     mask = Image.new("L", (PANEL_W, PANEL_H), 0)
     ImageDraw.Draw(mask).rounded_rectangle((0, 0, PANEL_W, PANEL_H), 50, fill=255)
-    bg.paste(panel, (PANEL_X, PANEL_Y), mask)
-
-    # 🔥 GLOW BORDER
-    glow = Image.new("RGBA", (PANEL_W+40, PANEL_H+40), (0,0,0,0))
-    gdraw = ImageDraw.Draw(glow)
-    for i in range(8):
-        gdraw.rounded_rectangle(
-            (i, i, PANEL_W+40-i, PANEL_H+40-i),
-            radius=60,
-            outline=(255,120,0,40-i*4)
-        )
-    bg.paste(glow, (PANEL_X-20, PANEL_Y-20), glow)
+    bg.paste(frosted, (PANEL_X, PANEL_Y), mask)
 
     draw = ImageDraw.Draw(bg)
 
-    # 🖼️ THUMB SHADOW
-    shadow = Image.new("RGBA", (THUMB_W+20, THUMB_H+20), (0,0,0,0))
-    ImageDraw.Draw(shadow).rounded_rectangle(
-        (0,0,THUMB_W+20,THUMB_H+20),
-        25,
-        fill=(0,0,0,120)
-    )
-    bg.paste(shadow, (THUMB_X-10, THUMB_Y-10), shadow)
+    # ✅ NAME FIXED HERE
+    try:
+        title_font = ImageFont.truetype("ShashankMusic/assets/assets/font2.ttf", 32)
+        regular_font = ImageFont.truetype("ShashankMusic/assets/assets/font.ttf", 18)
+    except OSError:
+        title_font = regular_font = ImageFont.load_default()
 
-    # 🖼️ THUMB
     thumb = base.resize((THUMB_W, THUMB_H))
     tmask = Image.new("L", thumb.size, 0)
-    ImageDraw.Draw(tmask).rounded_rectangle((0,0,THUMB_W,THUMB_H),20,fill=255)
+    ImageDraw.Draw(tmask).rounded_rectangle((0, 0, THUMB_W, THUMB_H), 20, fill=255)
     bg.paste(thumb, (THUMB_X, THUMB_Y), tmask)
 
-    # 🔤 FONT SAFE
-    try:
-        title_font = ImageFont.truetype("arial.ttf", 32)
-        small_font = ImageFont.truetype("arial.ttf", 18)
-    except:
-        title_font = small_font = ImageFont.load_default()
+    draw.text((TITLE_X, TITLE_Y),
+              trim_to_width(title, title_font, MAX_TITLE_WIDTH),
+              fill="black", font=title_font)
 
-    # ✨ TITLE
-    safe_title = trim_to_width(title, title_font, MAX_TITLE_WIDTH)
-    draw.text((TITLE_X+1, TITLE_Y+1), safe_title, fill="white", font=title_font)
-    draw.text((TITLE_X, TITLE_Y), safe_title, fill="black", font=title_font)
+    draw.text((META_X, META_Y),
+              f"YouTube | {views}",
+              fill="black", font=regular_font)
 
-    # 📊 META
-    draw.text((META_X, META_Y), f"YouTube | {views}", fill="black", font=small_font)
+    # Progress bar
+    draw.line([(BAR_X, BAR_Y), (BAR_X + BAR_RED_LEN, BAR_Y)], fill="red", width=6)
+    draw.line([(BAR_X + BAR_RED_LEN, BAR_Y), (BAR_X + BAR_TOTAL_LEN, BAR_Y)], fill="gray", width=5)
 
-    # 🎚️ PROGRESS BAR
-    draw.line([(BAR_X, BAR_Y), (BAR_X+BAR_TOTAL_LEN, BAR_Y)], fill=(180,180,180), width=6)
-    draw.line([(BAR_X, BAR_Y), (BAR_X+BAR_RED_LEN, BAR_Y)], fill=(255,120,0), width=8)
-    draw.ellipse(
-        [(BAR_X+BAR_RED_LEN-8, BAR_Y-8),
-         (BAR_X+BAR_RED_LEN+8, BAR_Y+8)],
-        fill="white"
-    )
+    draw.ellipse([(BAR_X + BAR_RED_LEN - 7, BAR_Y - 7),
+                  (BAR_X + BAR_RED_LEN + 7, BAR_Y + 7)],
+                 fill="red")
 
-    # ⏱️ TIME
-    draw.text((BAR_X, BAR_Y+15), "00:00", fill="black", font=small_font)
-    draw.text((BAR_X+BAR_TOTAL_LEN-60, BAR_Y+15), duration, fill="black", font=small_font)
+    draw.text((BAR_X, BAR_Y + 15), "00:00", fill="black", font=regular_font)
 
-    # 🧹 CLEANUP
+    end_text = "Live" if is_live else duration_text
+    draw.text((BAR_X + BAR_TOTAL_LEN - (90 if is_live else 60),
+               BAR_Y + 15),
+              end_text,
+              fill="red" if is_live else "black",
+              font=regular_font)
+
+    # ✅ NAME FIXED HERE ALSO
+    icons_path = "ShashankMusic/assets/assets/play_icons.png"
+
+    if os.path.isfile(icons_path):
+        ic = Image.open(icons_path).resize((ICONS_W, ICONS_H)).convert("RGBA")
+        r, g, b, a = ic.split()
+        black_ic = Image.merge("RGBA",
+                               (r.point(lambda *_: 0),
+                                g.point(lambda *_: 0),
+                                b.point(lambda *_: 0),
+                                a))
+        bg.paste(black_ic, (ICONS_X, ICONS_Y), black_ic)
+
     try:
         os.remove(thumb_path)
-    except:
+    except OSError:
         pass
 
     bg.save(cache_path)
