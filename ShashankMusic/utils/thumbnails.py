@@ -47,8 +47,8 @@ async def get_thumb(videoid: str) -> str:
     ImageDraw.Draw(mask).rounded_rectangle((0,0,PANEL_W,PANEL_H), 40, fill=255)
     bg.paste(panel, (PANEL_X, PANEL_Y), mask)
 
-    # THUMB TOP
-    TH_W, TH_H = 700, 320
+    # THUMB TOP (BIGGER)
+    TH_W, TH_H = 730, 340
     TH_X = PANEL_X + (PANEL_W - TH_W)//2
     TH_Y = PANEL_Y + 30
 
@@ -70,32 +70,35 @@ async def get_thumb(videoid: str) -> str:
         font_big = ImageFont.truetype("ShashankMusic/assets/assets/font2.ttf", 60)
         font_small = ImageFont.truetype("ShashankMusic/assets/assets/font.ttf", 28)
         font_time = ImageFont.truetype("ShashankMusic/assets/assets/font.ttf", 22)
+        control_font = ImageFont.truetype("ShashankMusic/assets/assets/font.ttf", 55)
     except:
-        font_big = font_small = font_time = ImageFont.load_default()
+        font_big = font_small = font_time = control_font = ImageFont.load_default()
 
-    # NOW PLAYING
+    # NOW PLAYING (CENTER PERFECT)
+    np_text = "Now Playing"
+    np_w = font_small.getlength(np_text)
     draw.text(
-        (PANEL_X + PANEL_W//2 - 90, TH_Y + TH_H + 20),
-        "Now Playing",
+        (PANEL_X + (PANEL_W - np_w)//2, TH_Y + TH_H + 25),
+        np_text,
         fill="#aaaaaa",
         font=font_small
     )
 
-    # TITLE
+    # TITLE (BIG + CENTER)
     text = title.upper()
-    if len(text) > 25:
-        text = text[:25] + "..."
+    if len(text) > 20:
+        text = text[:20] + "..."
 
     tw = font_big.getlength(text)
     draw.text(
-        (PANEL_X + (PANEL_W - tw)//2, TH_Y + TH_H + 70),
+        (PANEL_X + (PANEL_W - tw)//2, TH_Y + TH_H + 80),
         text,
         fill="white",
         font=font_big
     )
 
-    # PROGRESS BAR
-    BAR_Y = TH_Y + TH_H + 150
+    # PROGRESS BAR (LOWER)
+    BAR_Y = TH_Y + TH_H + 170
     BAR_X = PANEL_X + 80
     BAR_W = PANEL_W - 160
 
@@ -109,19 +112,19 @@ async def get_thumb(videoid: str) -> str:
         fill="white"
     )
 
-    # TIME
+    # TIME TEXT
     draw.text((BAR_X, BAR_Y+15), "1:24", fill="white", font=font_time)
     draw.text((BAR_X+BAR_W-60, BAR_Y+15), "3:45", fill="white", font=font_time)
 
-    # CONTROLS (FIXED - NO UNICODE ERROR)
-    controls = "<<   ||   >>"
-    cw = font_big.getlength(controls)
+    # CONTROLS (BIG + CLEAN)
+    controls = "◀◀   ▌▌   ▶▶"
+    cw = control_font.getlength(controls)
 
     draw.text(
-        (PANEL_X + (PANEL_W - cw)//2, BAR_Y + 60),
+        (PANEL_X + (PANEL_W - cw)//2, BAR_Y + 70),
         controls,
         fill="white",
-        font=font_big
+        font=control_font
     )
 
     # SAVE
