@@ -18,26 +18,16 @@ def changeImageSize(maxWidth, maxHeight, image):
     return image.resize((int(widthRatio * image.size[0]), int(heightRatio * image.size[1])))
 
 
-def truncate(text):
-    text = unidecode(text)
-    words = text.split()
-    t1, t2 = "", ""
-    for w in words:
-        if len(t1 + w) < 30:
-            t1 += " " + w
-        elif len(t2 + w) < 30:
-            t2 += " " + w
-    return [t1.strip(), t2.strip()]
+def clean(text):
+    return unidecode(str(text))
 
 
-def crop_center_circle(img, size, border):
-    img = img.resize((size - 2*border, size - 2*border))
-    mask = Image.new("L", img.size, 0)
-    ImageDraw.Draw(mask).ellipse((0, 0, img.size[0], img.size[1]), fill=255)
-
-    final = Image.new("RGBA", (size, size))
-    final.paste(img, (border, border), mask)
-    return final
+def trim(text, font, max_w):
+    if font.getlength(text) <= max_w:
+        return text
+    while font.getlength(text + "...") > max_w:
+        text = text[:-1]
+    return text + "..."
 
 
 async def get_thumb(videoid):
@@ -50,7 +40,7 @@ async def get_thumb(videoid):
     try:
         data = (await VideosSearch(f"https://www.youtube.com/watch?v={videoid}", limit=1).next())["result"][0]
 
-        title = unidecode(data.get("title", "Song"))
+        title = clean(data.get("title", "Song"))
         title = re.sub(r"\W+", " ", title).title()
 
         duration = data.get("duration", "3:00")
@@ -81,46 +71,58 @@ async def get_thumb(videoid):
 
     # 🎯 BACKGROUND
     image = changeImageSize(1280, 720, youtube)
-    bg = image.filter(ImageFilter.BoxBlur(20))
-    bg = ImageEnhance.Brightness(bg).enhance(0.6)
+    bg = image.filter(ImageFilter.GaussianBlur(25))
+    bg = ImageEnhance.Brightness(bg).enhance(0.5)
 
     draw = ImageDraw.Draw(bg)
 
     # 🎯 FONT SAFE
     try:
-        title_font = ImageFont.truetype("ShashankMusic/assets/font3.ttf", 45)
-        small_font = ImageFont.truetype("ShashankMusic/assets/font2.ttf", 30)
+        title_font = ImageFont.truetype("ShashankMusic/assets/font3.ttf", 50)
+        small_font = ImageFont.truetype("ShashankMusic/assets/font2.ttf", 28)
     except:
         title_font = small_font = ImageFont.load_default()
 
-    # 🎯 CIRCLE THUMB
-    circle = crop_center_circle(youtube, 400, 20)
-    bg.paste(circle, (120, 160), circle)
+    # 🔥 RECTANGLE THUMB (FIXED)
+    thumb = youtube.resize((450, 300))
 
-    x = 565
-    t1, t2 = truncate(title)
+    mask = Image.new("L", thumb.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, 450, 300), 25, fill=255)
 
-    draw.text((x, 180), t1, fill="white", font=title_font)
-    draw.text((x, 230), t2, fill="white", font=title_font)
+    bg.paste(thumb, (120, 200), mask)
 
-    draw.text((x, 320), f"{channel} | {views}", fill="white", font=small_font)
+    # 🎯 TEXT RIGHT SIDE
+    x = 620
+
+    title = trim(title, title_font, 550)
+
+    draw.text((x, 220), title, fill="white", font=title_font)
+
+    draw.text((x, 300), f"Duration: {duration}", fill=(255,140,0), font=small_font)
+    draw.text((x, 340), f"Views: {views}", fill=(255,140,0), font=small_font)
+    draw.text((x, 380), f"Channel: {channel}", fill=(255,140,0), font=small_font)
 
     # 🎯 PROGRESS BAR
-    total = 580
-    done = int(total * 0.6)
+    total = 420
+    done = int(total * 0.5)
 
-    draw.line((x, 380, x + done, 380), fill="red", width=9)
-    draw.line((x + done, 380, x + total, 380), fill="white", width=8)
+    bar_y = 450
 
-    draw.ellipse((x + done - 10, 370, x + done + 10, 390), fill="red")
+    draw.line((x, bar_y, x + total, bar_y), fill=(120,120,120), width=6)
+    draw.line((x, bar_y, x + done, bar_y), fill=(255,140,0), width=8)
 
-    draw.text((x, 400), "00:00", fill="white", font=small_font)
-    draw.text((1080, 400), duration, fill="white", font=small_font)
+    draw.ellipse((x + done - 8, bar_y - 8, x + done + 8, bar_y + 8), fill="white")
+
+    draw.text((x, bar_y + 20), "0:00", fill="white", font=small_font)
+    draw.text((x + total - 70, bar_y + 20), duration, fill="white", font=small_font)
+
+    # 🎯 NOW PLAYING
+    draw.text((x, 170), "NOW PLAYING", fill=(255,140,0), font=small_font)
 
     # 🎯 ICONS SAFE
     try:
-        icons = Image.open("ShashankMusic/assets/play_icons.png").resize((580, 62))
-        bg.paste(icons, (x, 450), icons)
+        icons = Image.open("ShashankMusic/assets/play_icons.png").resize((400, 60))
+        bg.paste(icons, (x, 500), icons)
     except:
         pass
 
