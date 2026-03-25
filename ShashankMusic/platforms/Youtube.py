@@ -32,7 +32,7 @@ async def download_song(link: str) -> str:
     try:
         async with aiohttp.ClientSession() as session:
             params = {"url": video_id, "type": "audio"}
-            
+
             async with session.get(
                 f"{API_URL}/download",
                 params=params,
@@ -43,12 +43,12 @@ async def download_song(link: str) -> str:
 
                 data = await response.json()
                 download_token = data.get("download_token")
-                
+
                 if not download_token:
                     return None
-                
+
                 stream_url = f"{API_URL}/stream/{video_id}?type=audio&token={download_token}"
-                
+
                 async with session.get(
                     stream_url,
                     timeout=aiohttp.ClientTimeout(total=300)
@@ -101,7 +101,7 @@ async def download_video(link: str) -> str:
     try:
         async with aiohttp.ClientSession() as session:
             params = {"url": video_id, "type": "video"}
-            
+
             async with session.get(
                 f"{API_URL}/download",
                 params=params,
@@ -112,12 +112,12 @@ async def download_video(link: str) -> str:
 
                 data = await response.json()
                 download_token = data.get("download_token")
-                
+
                 if not download_token:
                     return None
-                
+
                 stream_url = f"{API_URL}/stream/{video_id}?type=video&token={download_token}"
-                
+
                 async with session.get(
                     stream_url,
                     timeout=aiohttp.ClientTimeout(total=600)
@@ -346,7 +346,7 @@ class YouTubeAPI:
                 downloaded_file = await download_video(link)
             else:
                 downloaded_file = await download_song(link)
-            
+
             if downloaded_file:
                 return downloaded_file, True
             else:
