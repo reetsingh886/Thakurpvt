@@ -1,5 +1,4 @@
 import os
-import re
 import random
 
 import aiofiles
@@ -7,10 +6,6 @@ import aiohttp
 
 from PIL import Image, ImageEnhance, ImageOps
 
-from unidecode import unidecode
-from youtubesearchpython.__future__ import VideosSearch
-
-from ShashankMusic import app   # ✅ FIXED (BrandrdX → Shashank)
 from config import YOUTUBE_IMG_URL
 
 
@@ -18,83 +13,73 @@ from config import YOUTUBE_IMG_URL
 def changeImageSize(maxWidth, maxHeight, image):
     if image.size[0] == 0 or image.size[1] == 0:
         return image
+
     widthRatio = maxWidth / image.size[0]
     heightRatio = maxHeight / image.size[1]
+
     newWidth = int(widthRatio * image.size[0])
     newHeight = int(heightRatio * image.size[1])
+
     return image.resize((newWidth, newHeight))
-
-
-# ✅ Title cleaner
-def clear(text):
-    words = text.split(" ")
-    title = ""
-    for word in words:
-        if len(title) + len(word) < 60:
-            title += " " + word
-    return title.strip()
 
 
 # ✅ Main thumbnail function
 async def get_thumb(videoid):
     os.makedirs("cache", exist_ok=True)
 
-    if os.path.isfile(f"cache/{videoid}.png"):
-        return f"cache/{videoid}.png"
+    final_path = f"cache/{videoid}.png"
+    temp_path = f"cache/thumb_{videoid}.jpg"
 
-    url = f"https://www.youtube.com/watch?v={videoid}"
+    # ✅ Agar pehle se bana hua hai to wahi use karo
+    if os.path.isfile(final_path):
+        return final_path
 
     try:
-        results = VideosSearch(url, limit=1)
-        data = await results.next()
+        print(f"[THUMB] Generating thumbnail for videoid: {videoid}")
 
-        if not data["result"]:
-            return YOUTUBE_IMG_URL
-
-        result = data["result"][0]
-
-        title = re.sub(r"\W+", " ", result.get("title", "Unknown Title")).title()
-        duration = result.get("duration", "Unknown")
-        thumbnail = result["thumbnails"][0]["url"].split("?")[0]
-        views = result.get("viewCount", {}).get("short", "Unknown Views")
-        channel = result.get("channel", {}).get("name", "Unknown Channel")
+        # ✅ Direct YouTube thumbnail URL
+        thumbnail = f"https://img.youtube.com/vi/{videoid}/hqdefault.jpg"
 
         # ✅ Download thumbnail
-        temp_path = f"cache/thumb_{videoid}.png"
-
         async with aiohttp.ClientSession() as session:
             async with session.get(thumbnail) as resp:
                 if resp.status != 200:
+                    print(f"[THUMB ERROR] Thumbnail fetch failed: {resp.status}")
                     return YOUTUBE_IMG_URL
 
                 async with aiofiles.open(temp_path, "wb") as f:
                     await f.write(await resp.read())
 
-        # ✅ Image processing
-        colors = ["white", "red", "orange", "yellow", "green", "cyan", "blue", "violet", "pink"]
-        border = random.choice(colors)
-
-        youtube = Image.open(temp_path)
+        # ✅ Open image
+        youtube = Image.open(temp_path).convert("RGB")
         image1 = changeImageSize(1280, 720, youtube)
 
+        # ✅ Light enhancement
         bg = ImageEnhance.Brightness(image1).enhance(1.1)
         bg = ImageEnhance.Contrast(bg).enhance(1.1)
+
+        # ✅ Random border color
+        colors = [
+            "white", "red", "orange", "yellow",
+            "green", "cyan", "blue", "violet", "pink"
+        ]
+        border = random.choice(colors)
 
         final = ImageOps.expand(bg, border=7, fill=border)
         final = changeImageSize(1280, 720, final)
 
-        # ✅ Save final
-        final_path = f"cache/{videoid}.png"
+        # ✅ Save final image
         final.save(final_path)
 
-        # ✅ Cleanup
+        # ✅ Cleanup temp
         try:
             os.remove(temp_path)
         except:
             pass
 
+        print(f"[THUMB] Saved thumbnail: {final_path}")
         return final_path
 
     except Exception as e:
-        print(f"Thumbnail Error: {e}")
+        print(f"[THUMB ERROR] {e}")
         return YOUTUBE_IMG_URL
