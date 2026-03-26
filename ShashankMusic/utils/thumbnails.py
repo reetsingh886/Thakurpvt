@@ -59,20 +59,20 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     path = f"{CACHE_DIR}/{videoid}.png"
     thumb_file = f"{CACHE_DIR}/{videoid}.jpg"
 
-    # Fresh generate
+    # fresh generate
     try:
         if os.path.exists(path):
             os.remove(path)
     except:
         pass
 
-    # Auto fix title
+    # auto title fetch if missing
     if title.lower() in ["unknown song", "unknown", "none", ""]:
         yt_title = await fetch_youtube_title(videoid)
         if yt_title:
             title = yt_title
 
-    # Download thumbnail
+    # download thumbnail
     thumb_url = f"https://img.youtube.com/vi/{videoid}/maxresdefault.jpg"
     try:
         async with aiohttp.ClientSession() as s:
@@ -91,14 +91,14 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     except:
         thumb_file = None
 
-    # Load original
+    # load original image
     try:
         if thumb_file and os.path.exists(thumb_file):
             original = Image.open(thumb_file).convert("RGB")
         else:
             raise Exception("No thumb")
     except:
-        original = Image.new("RGB", (1600, 900), (80, 60, 90))
+        original = Image.new("RGB", (1600, 900), (90, 70, 90))
 
     original = original.resize((1600, 900))
 
@@ -109,27 +109,24 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     bg = ImageEnhance.Brightness(bg).enhance(0.55)
     bg = bg.convert("RGBA")
 
-    # Purple warm overlay
     overlay = Image.new("RGBA", (1600, 900), (120, 70, 130, 70))
     bg = Image.alpha_composite(bg, overlay)
 
     draw = ImageDraw.Draw(bg)
 
     # =========================
-    # GLASS CARD
+    # WHITE GLASS CARD
     # =========================
     card_x, card_y = 320, 140
     card_w, card_h = 960, 620
 
-    # shadow
     shadow = Image.new("RGBA", (card_w + 60, card_h + 60), (0, 0, 0, 0))
     sd = ImageDraw.Draw(shadow)
-    sd.rounded_rectangle((0, 0, card_w + 60, card_h + 60), 55, fill=(0, 0, 0, 130))
+    sd.rounded_rectangle((0, 0, card_w + 60, card_h + 60), 55, fill=(0, 0, 0, 180))
     shadow = shadow.filter(ImageFilter.GaussianBlur(28))
     bg.paste(shadow, (card_x - 30, card_y + 20), shadow)
 
-    # glass card
-    glass = Image.new("RGBA", (card_w, card_h), (255, 255, 255, 185))
+    glass = Image.new("RGBA", (card_w, card_h), (255, 255, 255, 235))
     glass_mask = Image.new("L", (card_w, card_h), 0)
     ImageDraw.Draw(glass_mask).rounded_rectangle((0, 0, card_w, card_h), 45, fill=255)
     bg.paste(glass, (card_x, card_y), glass_mask)
@@ -150,66 +147,55 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     # FONTS
     # =========================
     try:
-        title_big = ImageFont.truetype(FONT, 74)
         song_font = ImageFont.truetype(FONT, 46)
         small_font = ImageFont.truetype(FONT, 26)
         time_font = ImageFont.truetype(FONT, 24)
-        icon_font = ImageFont.truetype(FONT, 54)
+        btn_font = ImageFont.truetype(FONT, 48)
     except:
-        title_big = ImageFont.load_default()
         song_font = ImageFont.load_default()
         small_font = ImageFont.load_default()
         time_font = ImageFont.load_default()
-        icon_font = ImageFont.load_default()
-
-    # =========================
-    # TEXT ON IMAGE
-    # =========================
-    image_draw = ImageDraw.Draw(preview)
-    big_title = trim(title.upper(), title_big, 520)
-
-    image_draw.text((320, 95), big_title, fill="black", font=title_big, anchor="mm")
-    image_draw.text((320, 165), "ANUV JAIN", fill="black", font=song_font, anchor="mm")
-    bg.paste(preview, (preview_x, preview_y), preview)
+        btn_font = ImageFont.load_default()
 
     # =========================
     # SONG INFO
     # =========================
     title = trim(title, song_font, 560)
-    draw.text((500, 490), title, fill=(20, 20, 20), font=song_font)
 
-    draw.text((500, 545), f"YouTube | {views}", fill=(35, 35, 35), font=small_font)
+    draw.text((800, 500), title, fill=(10, 10, 10), font=song_font, anchor="mm")
+    draw.text((800, 555), f"YouTube | {views}", fill=(60, 60, 60), font=small_font, anchor="mm")
 
     # =========================
     # PROGRESS BAR
     # =========================
     bar_x1 = 500
-    bar_x2 = 1080
-    bar_y = 605
+    bar_x2 = 1100
+    bar_y = 600
 
-    draw.rounded_rectangle((bar_x1, bar_y, bar_x2, bar_y + 8), 8, fill=(120, 120, 120))
-    progress = 0.58
+    draw.rounded_rectangle((bar_x1, bar_y, bar_x2, bar_y + 8), 8, fill=(180, 180, 180))
+
+    progress = 0.5
     prog_x = int(bar_x1 + (bar_x2 - bar_x1) * progress)
-    draw.rounded_rectangle((bar_x1, bar_y, prog_x, bar_y + 8), 8, fill=(230, 0, 0))
-    draw.ellipse((prog_x - 9, bar_y - 7, prog_x + 9, bar_y + 11), fill=(230, 0, 0))
 
-    draw.text((500, 635), "00:00", fill="black", font=time_font)
-    draw.text((1035, 635), duration, fill="black", font=time_font)
+    draw.rounded_rectangle((bar_x1, bar_y, prog_x, bar_y + 8), 8, fill=(230, 0, 0))
+    draw.ellipse((prog_x - 8, bar_y - 6, prog_x + 8, bar_y + 10), fill=(230, 0, 0))
+
+    draw.text((500, 630), "00:00", fill=(40, 40, 40), font=time_font)
+    draw.text((1040, 630), duration, fill=(40, 40, 40), font=time_font)
 
     # =========================
     # CONTROLS
     # =========================
-    draw.text((585, 700), "⌁", fill="black", font=icon_font, anchor="mm")
-    draw.text((680, 700), "⏮", fill="black", font=icon_font, anchor="mm")
-    draw.text((800, 700), "⏯", fill="black", font=icon_font, anchor="mm")
-    draw.text((920, 700), "⏭", fill="black", font=icon_font, anchor="mm")
-    draw.text((1030, 700), "▢", fill="black", font=icon_font, anchor="mm")
+    draw.text((650, 700), "<<", fill="black", font=btn_font, anchor="mm")
+    draw.text((750, 700), "▶", fill="black", font=btn_font, anchor="mm")
+    draw.text((850, 700), "II", fill="black", font=btn_font, anchor="mm")
+    draw.text((950, 700), ">>", fill="black", font=btn_font, anchor="mm")
 
-    # Save
+    # save
     bg = bg.convert("RGB")
     bg.save(path, quality=96)
 
-    # Cleanup
+    # cleanup
     try:
         if thumb_file and os.path.exists(thumb_file):
             os.remove(thumb_file)
