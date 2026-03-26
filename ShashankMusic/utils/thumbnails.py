@@ -10,6 +10,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT = os.path.abspath(os.path.join(BASE_DIR, "..", "assets", "font.ttf"))
 
 
+# =========================
+# TEXT TRIM
+# =========================
 def trim(text, font, max_w):
     try:
         while font.getbbox(text)[2] > max_w and len(text) > 3:
@@ -19,6 +22,9 @@ def trim(text, font, max_w):
         return text
 
 
+# =========================
+# MAIN FUNCTION
+# =========================
 async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="0"):
     path = f"{CACHE_DIR}/{videoid}.png"
     if os.path.exists(path) and os.path.getsize(path) > 0:
@@ -27,96 +33,141 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     thumb_url = f"https://img.youtube.com/vi/{videoid}/hqdefault.jpg"
     thumb_file = f"{CACHE_DIR}/{videoid}.jpg"
 
-    # Download YouTube thumbnail
+    # -------------------------
+    # Download thumbnail
+    # -------------------------
     try:
         async with aiohttp.ClientSession() as s:
             async with s.get(thumb_url) as r:
                 if r.status == 200:
                     async with aiofiles.open(thumb_file, "wb") as f:
                         await f.write(await r.read())
+                else:
+                    thumb_file = None
     except:
         thumb_file = None
 
-    # Background
-    bg = Image.new("RGB", (1280, 720), (18, 10, 8))
+    # -------------------------
+    # Load thumb
+    # -------------------------
+    try:
+        if thumb_file and os.path.exists(thumb_file):
+            original = Image.open(thumb_file).convert("RGB")
+        else:
+            raise Exception("No thumb")
+    except:
+        original = Image.new("RGB", (1280, 720), (30, 30, 30))
 
-    glow = Image.new("RGB", (1280, 720), (0, 0, 0))
-    g = ImageDraw.Draw(glow)
-    g.ellipse((180, 40, 1100, 700), fill=(255, 90, 70))
-    glow = glow.filter(ImageFilter.GaussianBlur(170))
-    bg = Image.blend(bg, glow, 0.45)
+    # =========================
+    # BACKGROUND
+    # =========================
+    bg = original.resize((1280, 720)).filter(ImageFilter.GaussianBlur(22))
+    dark = Image.new("RGBA", (1280, 720), (0, 0, 0, 110))
+    bg = bg.convert("RGBA")
+    bg.alpha_composite(dark)
 
     draw = ImageDraw.Draw(bg)
 
-    # Left Thumbnail (same reference style)
-    try:
-        thumb = Image.open(thumb_file).convert("RGBA")
-        thumb = thumb.resize((430, 430))
-    except:
-        thumb = Image.new("RGBA", (430, 430), (35, 35, 35, 255))
+    # =========================
+    # CENTER CARD
+    # =========================
+    card = Image.new("RGBA", (700, 560), (22, 22, 24, 235))
+    card_mask = Image.new("L", (700, 560), 0)
+    ImageDraw.Draw(card_mask).rounded_rectangle((0, 0, 700, 560), 55, fill=255)
+    bg.paste(card, (290, 80), card_mask)
 
-    mask = Image.new("L", (430, 430), 0)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, 430, 430), 55, fill=255)
-    thumb.putalpha(mask)
-
-    # Shadow
-    shadow = Image.new("RGBA", (460, 460), (0, 0, 0, 0))
+    # Soft shadow
+    shadow = Image.new("RGBA", (740, 600), (0, 0, 0, 0))
     sd = ImageDraw.Draw(shadow)
-    sd.rounded_rectangle((0, 0, 460, 460), 60, fill=(0, 0, 0, 180))
+    sd.rounded_rectangle((0, 0, 740, 600), 60, fill=(0, 0, 0, 160))
     shadow = shadow.filter(ImageFilter.GaussianBlur(30))
-    bg.paste(shadow, (85, 135), shadow)
+    bg.paste(shadow, (270, 65), shadow)
 
-    # Border glow
-    border = Image.new("RGBA", (450, 450), (0, 0, 0, 0))
+    # =========================
+    # THUMB PREVIEW TOP
+    # =========================
+    preview = original.convert("RGBA").resize((610, 265))
+    mask = Image.new("L", (610, 265), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, 610, 265), 35, fill=255)
+    preview.putalpha(mask)
+
+    # golden border
+    border = Image.new("RGBA", (618, 273), (0, 0, 0, 0))
     bd = ImageDraw.Draw(border)
-    bd.rounded_rectangle((0, 0, 450, 450), 60, outline=(255, 90, 70), width=7)
+    bd.rounded_rectangle((0, 0, 618, 273), 38, outline=(220, 180, 110), width=4)
 
-    glow_border = border.filter(ImageFilter.GaussianBlur(18))
-    bg.paste(glow_border, (95, 145), glow_border)
-    bg.paste(border, (95, 145), border)
-    bg.paste(thumb, (105, 155), thumb)
+    bg.paste(border, (331, 97), border)
+    bg.paste(preview, (335, 101), preview)
 
-    # Fonts
+    # =========================
+    # FONTS
+    # =========================
     try:
-        badge_font = ImageFont.truetype(FONT, 30)
-        title_font = ImageFont.truetype(FONT, 56)
-        meta_font = ImageFont.truetype(FONT, 42)
-        small_font = ImageFont.truetype(FONT, 32)
+        small_font = ImageFont.truetype(FONT, 28)
+        med_font = ImageFont.truetype(FONT, 34)
+        title_font = ImageFont.truetype(FONT, 62)
+        time_font = ImageFont.truetype(FONT, 26)
+        icon_font = ImageFont.truetype(FONT, 80)
     except:
-        badge_font = ImageFont.load_default()
-        title_font = ImageFont.load_default()
-        meta_font = ImageFont.load_default()
         small_font = ImageFont.load_default()
+        med_font = ImageFont.load_default()
+        title_font = ImageFont.load_default()
+        time_font = ImageFont.load_default()
+        icon_font = ImageFont.load_default()
 
-    # NOW PLAYING badge
-    draw.rounded_rectangle((610, 150, 930, 220), 35, fill=(255, 90, 70))
-    draw.text((685, 168), "NOW PLAYING", fill="black", font=badge_font)
-
-    # Title
+    # =========================
+    # TEXT
+    # =========================
     title = trim(title, title_font, 540)
-    draw.text((610, 260), title, fill="white", font=title_font)
 
-    # Underline
-    draw.line((610, 345, 1120, 345), fill=(255, 90, 70), width=5)
+    draw.text((555, 395), "Now Playing", fill=(210, 210, 210), font=med_font, anchor="mm")
+    draw.text((555, 455), title, fill="white", font=title_font, anchor="mm")
 
-    # Meta section
-    draw.text((610, 395), "Duration:", fill="white", font=meta_font)
-    draw.text((855, 395), duration, fill=(255, 110, 90), font=meta_font)
+    # =========================
+    # PROGRESS BAR
+    # =========================
+    bar_x1 = 380
+    bar_x2 = 910
+    bar_y = 530
 
-    draw.text((610, 480), "Views:", fill="white", font=meta_font)
-    draw.text((780, 480), views, fill=(255, 110, 90), font=meta_font)
+    # base line
+    draw.rounded_rectangle((bar_x1, bar_y, bar_x2, bar_y + 8), 10, fill=(110, 110, 110))
 
-    # Progress bar
-    bar_x = 610
-    bar_y = 575
-    bar_w = 500
+    # progress
+    progress = 0.40
+    prog_x = int(bar_x1 + (bar_x2 - bar_x1) * progress)
+    draw.rounded_rectangle((bar_x1, bar_y, prog_x, bar_y + 8), 10, fill=(220, 180, 110))
 
-    draw.rounded_rectangle((bar_x, bar_y, bar_x + bar_w, bar_y + 12), 8, fill=(190, 190, 190))
-    draw.rounded_rectangle((bar_x, bar_y, bar_x + bar_w // 2, bar_y + 12), 8, fill=(255, 90, 70))
-    draw.ellipse((bar_x + bar_w // 2 - 12, bar_y - 8, bar_x + bar_w // 2 + 12, bar_y + 16), fill="white")
+    # slider
+    draw.ellipse((prog_x - 10, bar_y - 8, prog_x + 10, bar_y + 12), fill="white")
 
-    draw.text((610, 605), "00:00", fill="white", font=small_font)
-    draw.text((1045, 605), duration, fill="white", font=small_font)
+    # time text
+    draw.text((380, 565), "1:24", fill=(170, 170, 170), font=time_font)
+    draw.text((885, 565), duration, fill=(170, 170, 170), font=time_font)
 
-    bg.save(path)
+    # =========================
+    # PLAYER BUTTONS
+    # =========================
+    # Back
+    draw.text((520, 625), "⏮", fill="white", font=icon_font, anchor="mm")
+
+    # Pause background
+    draw.rounded_rectangle((610, 575, 720, 675), 28, fill=(50, 50, 50))
+    draw.text((665, 625), "⏸", fill="white", font=icon_font, anchor="mm")
+
+    # Next
+    draw.text((785, 625), "⏭", fill="white", font=icon_font, anchor="mm")
+
+    # =========================
+    # SAVE
+    # =========================
+    bg = bg.convert("RGB")
+    bg.save(path, quality=95)
+
+    try:
+        if thumb_file and os.path.exists(thumb_file):
+            os.remove(thumb_file)
+    except:
+        pass
+
     return path
