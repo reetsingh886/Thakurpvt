@@ -38,7 +38,45 @@ def trim_text(text, font, max_width):
 
 
 # =========================
-# FETCH YOUTUBE TITLE
+# FORMATTERS
+# =========================
+def parse_duration_to_seconds(duration: str):
+    try:
+        parts = [int(x) for x in str(duration).split(":")]
+        if len(parts) == 2:
+            return parts[0] * 60 + parts[1]
+        elif len(parts) == 3:
+            return parts[0] * 3600 + parts[1] * 60 + parts[2]
+    except:
+        pass
+    return 240  # fallback 4 min
+
+
+def format_time(seconds: int):
+    m = seconds // 60
+    s = seconds % 60
+    return f"{m:02d}:{s:02d}"
+
+
+def format_views(views):
+    try:
+        v = str(views).replace(",", "").strip()
+        if not v or v == "0":
+            return "45M"
+        n = int(v)
+        if n >= 1_000_000_000:
+            return f"{round(n/1_000_000_000, 1)}B".replace(".0", "")
+        elif n >= 1_000_000:
+            return f"{round(n/1_000_000, 1)}M".replace(".0", "")
+        elif n >= 1_000:
+            return f"{round(n/1_000, 1)}K".replace(".0", "")
+        return str(n)
+    except:
+        return str(views) if views else "45M"
+
+
+# =========================
+# FETCH TITLE
 # =========================
 async def fetch_youtube_title(videoid: str):
     try:
@@ -56,7 +94,7 @@ async def fetch_youtube_title(videoid: str):
 
 
 # =========================
-# ICON DRAW
+# ICONS
 # =========================
 def draw_prev(draw, x, y, color="white"):
     draw.polygon([(x+28, y), (x, y+20), (x+28, y+40)], fill=color)
@@ -87,12 +125,12 @@ def draw_repeat(draw, x, y, color="white", width=5):
 
 
 # =========================
-# MAIN THUMB FUNCTION
+# MAIN
 # =========================
 async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="0"):
     title = safe_text(title, "Unknown Song")
-    duration = safe_text(duration, "0:00")
-    views = safe_text(views, "0")
+    duration = safe_text(duration, "4:00")
+    views = safe_text(views, "45M")
 
     path = f"{CACHE_DIR}/{videoid}.png"
     thumb_file = f"{CACHE_DIR}/{videoid}.jpg"
@@ -103,13 +141,12 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     except:
         pass
 
-    # Auto title
     if title.lower() in ["unknown song", "unknown", "none", ""]:
         yt_title = await fetch_youtube_title(videoid)
         if yt_title:
             title = yt_title
 
-    # Download thumbnail
+    # download thumbnail
     thumb_url = f"https://img.youtube.com/vi/{videoid}/maxresdefault.jpg"
     try:
         async with aiohttp.ClientSession() as s:
@@ -128,7 +165,7 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     except:
         thumb_file = None
 
-    # Load image
+    # load image
     try:
         if thumb_file and os.path.exists(thumb_file):
             original = Image.open(thumb_file).convert("RGB")
@@ -140,21 +177,32 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     original = ImageOps.fit(original, (1280, 720), method=Image.LANCZOS)
 
     # =========================
-    # BACKGROUND
+    # DYNAMIC TIME / VIEWS
     # =========================
-    bg = original.resize((1280, 720)).filter(ImageFilter.GaussianBlur(30))
+    total_seconds = parse_duration_to_seconds(duration)
+    progress = 0.58
+    current_seconds = int(total_seconds * progress)
+
+    current_time = format_time(current_seconds)
+    total_time = format_time(total_seconds)
+    pretty_views = format_views(views)
+
+    # =========================
+    # BACKGROUND = SAME THUMB BLUR
+    # =========================
+    bg = original.resize((1280, 720)).filter(ImageFilter.GaussianBlur(34))
     bg = ImageEnhance.Brightness(bg).enhance(0.28)
-    bg = ImageEnhance.Color(bg).enhance(1.0)
+    bg = ImageEnhance.Color(bg).enhance(0.95)
     bg = bg.convert("RGBA")
 
-    dark = Image.new("RGBA", (1280, 720), (0, 0, 0, 90))
+    dark = Image.new("RGBA", (1280, 720), (0, 0, 0, 95))
     bg = Image.alpha_composite(bg, dark)
 
-    # soft center glow
+    # center soft glow
     glow = Image.new("RGBA", (1280, 720), (0, 0, 0, 0))
     gd = ImageDraw.Draw(glow)
-    gd.ellipse((250, 120, 1030, 650), fill=(255, 255, 255, 18))
-    glow = glow.filter(ImageFilter.GaussianBlur(120))
+    gd.ellipse((180, 100, 1100, 660), fill=(255, 255, 255, 16))
+    glow = glow.filter(ImageFilter.GaussianBlur(110))
     bg = Image.alpha_composite(bg, glow)
 
     # =========================
@@ -166,8 +214,8 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     shadow = Image.new("RGBA", (card_w + 80, card_h + 80), (0, 0, 0, 0))
     sd = ImageDraw.Draw(shadow)
     sd.rounded_rectangle((0, 0, card_w + 80, card_h + 80), 42, fill=(0, 0, 0, 120))
-    shadow = shadow.filter(ImageFilter.GaussianBlur(30))
-    bg.paste(shadow, (card_x - 40, card_y - 15), shadow)
+    shadow = shadow.filter(ImageFilter.GaussianBlur(28))
+    bg.paste(shadow, (card_x - 40, card_y - 20), shadow)
 
     card_crop = bg.crop((card_x, card_y, card_x + card_w, card_y + card_h))
     card_crop = card_crop.filter(ImageFilter.GaussianBlur(8))
@@ -181,15 +229,15 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
 
     border = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
     bd = ImageDraw.Draw(border)
-    bd.rounded_rectangle((0, 0, card_w - 1, card_h - 1), 36, outline=(255, 255, 255, 52), width=2)
+    bd.rounded_rectangle((0, 0, card_w - 1, card_h - 1), 36, outline=(255, 255, 255, 50), width=2)
     bg.paste(border, (card_x, card_y), border)
 
     draw = ImageDraw.Draw(bg)
 
     # =========================
-    # ALBUM THUMB
+    # ROUND ALBUM
     # =========================
-    thumb_size = 265
+    thumb_size = 270
     album = ImageOps.fit(original.convert("RGBA"), (thumb_size, thumb_size), method=Image.LANCZOS)
 
     circle_mask = Image.new("L", (thumb_size, thumb_size), 0)
@@ -202,7 +250,7 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
 
     album_glow = Image.new("RGBA", (thumb_size + 90, thumb_size + 90), (0, 0, 0, 0))
     ag = ImageDraw.Draw(album_glow)
-    ag.ellipse((25, 25, thumb_size + 65, thumb_size + 65), fill=(255, 255, 255, 48))
+    ag.ellipse((25, 25, thumb_size + 65, thumb_size + 65), fill=(255, 255, 255, 50))
     album_glow = album_glow.filter(ImageFilter.GaussianBlur(22))
 
     thumb_x = 140
@@ -223,26 +271,25 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     # =========================
     title = trim_text(title, title_font, 560)
 
-    text_x = 570
+    text_x = 575
     draw.text((text_x, 235), title, fill="white", font=title_font)
-    draw.text((text_x, 315), f"YouTube | {views} views", fill=(220, 220, 220), font=meta_font)
+    draw.text((text_x, 315), f"YouTube | {pretty_views} views", fill=(220, 220, 220), font=meta_font)
 
     # =========================
     # PROGRESS BAR
     # =========================
     bar_x1 = text_x
-    bar_x2 = 1120
+    bar_x2 = 1125
     bar_y = 390
 
     draw.rounded_rectangle((bar_x1, bar_y, bar_x2, bar_y + 8), 8, fill=(255, 255, 255))
-    progress = 0.58
     prog_x = int(bar_x1 + (bar_x2 - bar_x1) * progress)
 
     draw.rounded_rectangle((bar_x1, bar_y, prog_x, bar_y + 8), 8, fill=(255, 0, 0))
     draw.ellipse((prog_x - 11, bar_y - 10, prog_x + 11, bar_y + 12), fill=(255, 0, 0))
 
-    draw.text((bar_x1, 430), "00:00", fill="white", font=time_font)
-    draw.text((1065, 430), duration, fill="white", font=time_font)
+    draw.text((bar_x1, 430), current_time, fill="white", font=time_font)
+    draw.text((1060, 430), total_time, fill="white", font=time_font)
 
     # =========================
     # CONTROLS
@@ -252,7 +299,6 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     draw_shuffle(draw, 585, controls_y, color="white")
     draw_prev(draw, 730, controls_y + 2, color="white")
 
-    # Play button premium
     play_shadow = Image.new("RGBA", (120, 120), (0, 0, 0, 0))
     ps = ImageDraw.Draw(play_shadow)
     ps.ellipse((15, 15, 105, 105), fill=(255, 255, 255, 50))
@@ -265,7 +311,7 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     draw_next(draw, 980, controls_y + 2, color="white")
     draw_repeat(draw, 1085, controls_y, color="white")
 
-    # Save
+    # save
     bg = bg.convert("RGB")
     bg.save(path, quality=98)
 
