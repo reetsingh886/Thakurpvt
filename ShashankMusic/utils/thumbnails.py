@@ -11,7 +11,7 @@ FONT = os.path.abspath(os.path.join(BASE_DIR, "..", "assets", "font.ttf"))
 
 
 # =========================
-# SAFE TEXT
+# HELPERS
 # =========================
 def safe_text(text, default="Unknown Song"):
     if text is None:
@@ -30,16 +30,26 @@ def load_font(size):
 def trim_text(text, font, max_width):
     text = safe_text(text)
     try:
-        while font.getbbox(text)[2] > max_width and len(text) > 3:
+        while len(text) > 3 and font.getlength(text) > max_width:
             text = text[:-1]
         return text + "..." if len(text) > 3 else text
     except:
         return text
 
 
-# =========================
-# FETCH YOUTUBE TITLE
-# =========================
+def safe_round(draw, box, radius, fill=None, outline=None, width=1):
+    try:
+        x1, y1, x2, y2 = box
+        if x2 <= x1 or y2 <= y1:
+            return
+        draw.rounded_rectangle(box, radius=radius, fill=fill, outline=outline, width=width)
+    except:
+        try:
+            draw.rectangle(box, fill=fill, outline=outline, width=width)
+        except:
+            pass
+
+
 async def fetch_youtube_title(videoid: str):
     try:
         url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={videoid}&format=json"
@@ -72,7 +82,7 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     except:
         pass
 
-    # Auto title
+    # Auto title fix
     if title.lower() in ["unknown song", "unknown", "none", ""]:
         yt_title = await fetch_youtube_title(videoid)
         if yt_title:
@@ -97,7 +107,7 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     except:
         thumb_file = None
 
-    # Load original image
+    # Load image safely
     try:
         if thumb_file and os.path.exists(thumb_file):
             original = Image.open(thumb_file).convert("RGB")
@@ -109,51 +119,53 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     original = ImageOps.fit(original, (1280, 720), method=Image.LANCZOS)
 
     # =========================
-    # BACKGROUND (same vibe)
+    # BACKGROUND
     # =========================
     bg = original.copy().filter(ImageFilter.GaussianBlur(28))
     bg = ImageEnhance.Brightness(bg).enhance(0.26)
-    bg = ImageEnhance.Color(bg).enhance(0.9)
+    bg = ImageEnhance.Color(bg).enhance(0.95)
     bg = bg.convert("RGBA")
 
     dark = Image.new("RGBA", (1280, 720), (18, 8, 5, 120))
     bg = Image.alpha_composite(bg, dark)
 
-    # center glow
     glow = Image.new("RGBA", (1280, 720), (0, 0, 0, 0))
     gd = ImageDraw.Draw(glow)
-    gd.ellipse((180, 80, 1110, 670), fill=(255, 100, 80, 25))
+    gd.ellipse((180, 80, 1110, 670), fill=(255, 100, 80, 22))
     glow = glow.filter(ImageFilter.GaussianBlur(130))
     bg = Image.alpha_composite(bg, glow)
 
     draw = ImageDraw.Draw(bg)
 
     # =========================
-    # LEFT ALBUM COVER
+    # LEFT COVER BOX
     # =========================
     cover_x, cover_y = 90, 125
     cover_outer = 430
     cover_inner = 350
 
-    # outer rounded red border
-    draw.rounded_rectangle(
+    safe_round(
+        draw,
         (cover_x, cover_y, cover_x + cover_outer, cover_y + cover_outer),
         radius=45,
         outline=(255, 95, 95),
         width=8,
-        fill=(10, 10, 10, 140)
+        fill=(10, 10, 10, 145)
     )
-
-    # inner cover
-    album = ImageOps.fit(original.copy(), (cover_inner, cover_inner), method=Image.LANCZOS)
-    album = album.convert("RGBA")
-
-    cover_mask = Image.new("L", (cover_inner, cover_inner), 0)
-    ImageDraw.Draw(cover_mask).rounded_rectangle((0, 0, cover_inner, cover_inner), 10, fill=255)
 
     album_x = cover_x + 40
     album_y = cover_y + 40
-    bg.paste(album, (album_x, album_y), cover_mask)
+
+    try:
+        album = ImageOps.fit(original.copy(), (cover_inner, cover_inner), method=Image.LANCZOS)
+        album = album.convert("RGBA")
+
+        cover_mask = Image.new("L", (cover_inner, cover_inner), 0)
+        ImageDraw.Draw(cover_mask).rounded_rectangle((0, 0, cover_inner, cover_inner), 10, fill=255)
+
+        bg.paste(album, (album_x, album_y), cover_mask)
+    except:
+        pass
 
     # =========================
     # FONTS
@@ -164,19 +176,20 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     time_font = load_font(20)
 
     # =========================
-    # RIGHT SIDE TEXT
+    # RIGHT TEXT AREA
     # =========================
     text_x = 610
 
-    # NOW PLAYING pill
+    # Now Playing pill
     pill_x, pill_y = text_x, 145
     pill_w, pill_h = 250, 65
-    draw.rounded_rectangle(
+    safe_round(
+        draw,
         (pill_x, pill_y, pill_x + pill_w, pill_y + pill_h),
         radius=32,
         fill=(255, 95, 95)
     )
-    draw.text((pill_x + 35, pill_y + 14), "NOW PLAYING", fill="black", font=now_font)
+    draw.text((pill_x + 34, pill_y + 14), "NOW PLAYING", fill="black", font=now_font)
 
     # Title
     title = trim_text(title, title_font, 530)
@@ -185,7 +198,7 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     # underline
     draw.line((text_x, 330, 1200, 330), fill=(255, 95, 95), width=5)
 
-    # Duration and Views
+    # Duration & Views
     draw.text((text_x, 385), "Duration:", fill=(220, 220, 220), font=info_font)
     draw.text((800, 385), duration, fill=(255, 95, 95), font=info_font)
 
@@ -202,16 +215,15 @@ async def get_thumb(videoid: str, title="Unknown Song", duration="0:00", views="
     progress = 0.45
     prog_x = int(bar_x1 + (bar_x2 - bar_x1) * progress)
 
-    # white base
-    draw.rounded_rectangle((bar_x1, bar_y, bar_x2, bar_y + 8), 8, fill=(240, 240, 240))
+    try:
+        safe_round(draw, (bar_x1, bar_y, bar_x2, bar_y + 8), radius=8, fill=(240, 240, 240))
+        safe_round(draw, (bar_x1, bar_y, prog_x, bar_y + 8), radius=8, fill=(255, 95, 95))
+    except:
+        draw.line((bar_x1, bar_y, bar_x2, bar_y), fill="white", width=6)
+        draw.line((bar_x1, bar_y, prog_x, bar_y), fill=(255, 95, 95), width=6)
 
-    # red progress
-    draw.rounded_rectangle((bar_x1, bar_y, prog_x, bar_y + 8), 8, fill=(255, 95, 95))
-
-    # knob
     draw.ellipse((prog_x - 12, bar_y - 11, prog_x + 12, bar_y + 13), fill="white")
 
-    # times
     draw.text((bar_x1, 615), "00:00", fill=(235, 235, 235), font=time_font)
     draw.text((1135, 615), duration, fill=(235, 235, 235), font=time_font)
 
