@@ -14,7 +14,6 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 
 WIDTH, HEIGHT = 1280, 720
 
-# Left thumbnail box
 THUMB_X = 105
 THUMB_Y = 140
 THUMB_W = 450
@@ -22,7 +21,6 @@ THUMB_H = 450
 THUMB_RADIUS = 35
 BORDER_WIDTH = 10
 
-# Right content area
 BADGE_X = 620
 BADGE_Y = 125
 
@@ -40,29 +38,43 @@ BAR_RED = 250
 FOOTER_X = 910
 FOOTER_Y = 650
 
-MAX_TITLE_WIDTH = 520
+MAX_TITLE_WIDTH = 530
 
 # =========================
 # HELPERS
 # =========================
 def safe_text(text):
-    """Remove unsupported unicode safely."""
-    return str(text).encode("ascii", "ignore").decode("ascii")
+    if not text:
+        return "Unknown"
+    return str(text).encode("ascii", "ignore").decode("ascii").strip() or "Unknown"
 
-def trim_to_width(text: str, font, max_w: int) -> str:
+def trim_to_width(text, font, max_w):
+    text = safe_text(text)
     ellipsis = "..."
-    if font.getlength(text) <= max_w:
-        return text
-    for i in range(len(text) - 1, 0, -1):
-        if font.getlength(text[:i] + ellipsis) <= max_w:
-            return text[:i] + ellipsis
-    return ellipsis
+    try:
+        if draw_text_width(text, font) <= max_w:
+            return text
+        for i in range(len(text), 0, -1):
+            test = text[:i] + ellipsis
+            if draw_text_width(test, font) <= max_w:
+                return test
+    except Exception:
+        return text[:35] + "..." if len(text) > 35 else text
+    return text
+
+def draw_text_width(text, font):
+    try:
+        return font.getbbox(text)[2] - font.getbbox(text)[0]
+    except:
+        return len(text) * 15  # fallback approx
 
 # =========================
-# MAIN THUMB FUNCTION
+# MAIN FUNCTION
 # =========================
 async def get_thumb(videoid: str) -> str:
     cache_path = os.path.join(CACHE_DIR, f"{videoid}_premium.png")
+    thumb_path = os.path.join(CACHE_DIR, f"{videoid}_thumb.jpg")
+
     if os.path.exists(cache_path):
         return cache_path
 
@@ -75,18 +87,14 @@ async def get_thumb(videoid: str) -> str:
         result_items = results_data.get("result", [])
 
         if not result_items:
-            raise ValueError("No results found.")
+            raise Exception("No video data found")
 
         data = result_items[0]
 
-        raw_title = data.get("title", "Unknown Title")
-        title = safe_text(raw_title)
-
+        title = safe_text(data.get("title", "Unknown Song"))
         thumbnail = data.get("thumbnails", [{}])[0].get("url", f"https://i.ytimg.com/vi/{videoid}/hqdefault.jpg")
-        duration = data.get("duration", "4:00")
-        views = data.get("viewCount", {}).get("short", "Unknown Views")
-
-        title = trim_to_width(title, ImageFont.load_default(), 45)
+        duration = safe_text(data.get("duration", "4:00"))
+        views = safe_text(data.get("viewCount", {}).get("short", "Unknown Views"))
 
     except Exception:
         title = "Unknown Song"
@@ -97,8 +105,6 @@ async def get_thumb(videoid: str) -> str:
     # -------------------------
     # DOWNLOAD THUMBNAIL
     # -------------------------
-    thumb_path = os.path.join(CACHE_DIR, f"{videoid}_thumb.jpg")
-
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(thumbnail) as resp:
@@ -111,11 +117,14 @@ async def get_thumb(videoid: str) -> str:
         return None
 
     # -------------------------
-    # OPEN BASE IMAGE
+    # OPEN IMAGE SAFELY
     # -------------------------
-    base = Image.open(thumb_path).convert("RGBA").resize((WIDTH, HEIGHT))
-    bg = ImageEnhance.Brightness(base.filter(ImageFilter.GaussianBlur(18))).enhance(0.30)
+    try:
+        base = Image.open(thumb_path).convert("RGBA").resize((WIDTH, HEIGHT))
+    except Exception:
+        return None
 
+    bg = ImageEnhance.Brightness(base.filter(ImageFilter.GaussianBlur(18))).enhance(0.30)
     draw = ImageDraw.Draw(bg)
 
     # -------------------------
@@ -123,17 +132,20 @@ async def get_thumb(videoid: str) -> str:
     # -------------------------
     try:
         badge_font = ImageFont.truetype("Shashank/assets/assets/font2.ttf", 30)
-        title_font = ImageFont.truetype("Shashank/assets/assets/font.ttf", 56)
-        regular_font = ImageFont.truetype("Shashank/assets/assets/font2.ttf", 40)
-        small_font = ImageFont.truetype("Shashank/assets/assets/font2.ttf", 30)
-        footer_font = ImageFont.truetype("Shashank/assets/assets/font2.ttf", 24)
-    except OSError:
+        title_font = ImageFont.truetype("Shashank/assets/assets/font.ttf", 54)
+        regular_font = ImageFont.truetype("Shashank/assets/assets/font2.ttf", 38)
+        small_font = ImageFont.truetype("Shashank/assets/assets/font2.ttf", 28)
+        footer_font = ImageFont.truetype("Shashank/assets/assets/font2.ttf", 22)
+    except Exception:
         badge_font = title_font = regular_font = small_font = footer_font = ImageFont.load_default()
 
     # -------------------------
-    # LEFT THUMB IMAGE
+    # LEFT THUMB
     # -------------------------
-    thumb = Image.open(thumb_path).convert("RGBA").resize((THUMB_W, THUMB_H))
+    try:
+        thumb = Image.open(thumb_path).convert("RGBA").resize((THUMB_W, THUMB_H))
+    except Exception:
+        thumb = base.resize((THUMB_W, THUMB_H))
 
     mask = Image.new("L", (THUMB_W, THUMB_H), 0)
     ImageDraw.Draw(mask).rounded_rectangle((0, 0, THUMB_W, THUMB_H), THUMB_RADIUS, fill=255)
@@ -167,15 +179,14 @@ async def get_thumb(videoid: str) -> str:
     title = trim_to_width(title, title_font, MAX_TITLE_WIDTH)
     draw.text((TITLE_X, TITLE_Y), title, fill="white", font=title_font)
 
-    # underline
-    title_w = int(draw.textlength(title, font=title_font))
-    draw.line((TITLE_X, TITLE_Y + 78, TITLE_X + min(title_w, 430), TITLE_Y + 78), fill=(255, 59, 59), width=5)
+    title_line_width = min(draw_text_width(title, title_font), 430)
+    draw.line((TITLE_X, TITLE_Y + 78, TITLE_X + title_line_width, TITLE_Y + 78), fill=(255, 59, 59), width=5)
 
     # -------------------------
-    # META TEXT
+    # META
     # -------------------------
-    draw.text((META_X, META_Y), f"Duration: {safe_text(duration)}", fill="white", font=regular_font)
-    draw.text((META_X, META_Y + 58), f"Views: {safe_text(views)}", fill=(255, 90, 90), font=regular_font)
+    draw.text((META_X, META_Y), f"Duration: {duration}", fill="white", font=regular_font)
+    draw.text((META_X, META_Y + 58), f"Views: {views}", fill=(255, 90, 90), font=regular_font)
     draw.text((META_X, META_Y + 116), "Player: @sunumusicbot", fill=(255, 90, 90), font=regular_font)
 
     # -------------------------
@@ -188,7 +199,7 @@ async def get_thumb(videoid: str) -> str:
     draw.ellipse((knob_x - 16, BAR_Y - 16, knob_x + 16, BAR_Y + 16), fill="white")
 
     draw.text((BAR_X, BAR_Y + 28), "00:00", fill="white", font=small_font)
-    draw.text((BAR_X + BAR_TOTAL - 70, BAR_Y + 28), safe_text(duration), fill="white", font=small_font)
+    draw.text((BAR_X + BAR_TOTAL - 70, BAR_Y + 28), duration, fill="white", font=small_font)
 
     # -------------------------
     # FOOTER
@@ -198,7 +209,10 @@ async def get_thumb(videoid: str) -> str:
     # -------------------------
     # SAVE
     # -------------------------
-    bg.save(cache_path)
+    try:
+        bg.save(cache_path)
+    except Exception:
+        return None
 
     try:
         os.remove(thumb_path)
