@@ -2,7 +2,7 @@ import os
 import re
 import aiohttp
 import aiofiles
-from SONALI import app
+from ShashankMusic import app
 from config import YOUTUBE_IMG_URL
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from py_yt import VideosSearch
@@ -78,9 +78,9 @@ async def get_thumb(videoid):
         background.paste(bordered_center_thumb, (pos_x, pos_y))
 
         
-        arial = ImageFont.truetype("SONALI/assets/font2.ttf", 30)
-        font = ImageFont.truetype("SONALI/assets/font.ttf", 30)
-        bold_font = ImageFont.truetype("SONALI/assets/font.ttf", 33)
+        arial = ImageFont.truetype("ShashankMusic/assets/font2.ttf", 30)
+        font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 30)
+        bold_font = ImageFont.truetype("ShashankMusic/assets/font.ttf", 33)
 
     
         text_size = draw.textsize("@PurviBots   ", font=font)
