@@ -26,7 +26,7 @@ heroku3
 httpx
 motor
 numpy
-opencv-python
+opencv-python-headless
 Pillow
 psutil
 pickledb
@@ -38,7 +38,7 @@ python-dotenv
 pyshorteners
 pytz
 pyrofork
-py-tgcalls==0.9.7
+py-tgcalls
 pyyaml
 requests
 spotipy==2.24.0
@@ -48,4 +48,3 @@ wget
 youtube-search-python
 yt-dlp
 speedtest-cli
-py_yt
