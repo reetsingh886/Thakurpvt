@@ -38,7 +38,7 @@ python-dotenv
 pyshorteners
 pytz
 pyrofork
-py-tgcalls
+py-tgcalls==0.8.6
 pyyaml
 requests
 spotipy==2.24.0
