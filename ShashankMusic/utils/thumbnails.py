@@ -5,7 +5,7 @@ import aiofiles
 from ShashankMusic import app
 from config import YOUTUBE_IMG_URL
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
-from py_yt import VideosSearch
+from youtubesearchpython import VideosSearch
 
 def clear(text):
     return re.sub("\s+", " ", text).strip()
