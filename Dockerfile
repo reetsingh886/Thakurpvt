@@ -6,9 +6,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY . .
+
+COPY requirements.txt .
 
 RUN pip3 install --no-cache-dir --upgrade pip \
-    && pip3 install --no-cache-dir --upgrade -r requirements.txt
+    && pip3 install --no-cache-dir -r requirements.txt
 
-CMD bash start
+COPY . .
+
+CMD ["python3", "-m", "ShashankMusic"]
