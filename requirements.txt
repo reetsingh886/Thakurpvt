@@ -48,3 +48,4 @@ wget
 youtube-search-python
 yt-dlp
 speedtest-cli
+py_yt
