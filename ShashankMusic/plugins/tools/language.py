@@ -11,15 +11,15 @@
 #
 # ❤️ Made with dedication and love by ItzShukla
 # -----------------------------------------------
-
-from pykeyboard import InlineKeyboard
 from pyrogram import filters
-from pyrogram.types import InlineKeyboardButton, Message
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
+
 from ShashankMusic import app
 from ShashankMusic.utils.database import get_lang, set_lang
 from ShashankMusic.utils.decorators import ActualAdminCB, language, languageCB
 from config import BANNED_USERS
 from strings import get_string, languages_present
+
 
 
 def lanuages_keyboard(_):
