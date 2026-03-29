@@ -1,24 +1,13 @@
-# -----------------------------------------------
-# 🔸 ShashankMusic Project
-# 🔹 Developed & Maintained by: Shashank Shukla (https://github.com/itzshukla)
-# 📅 Copyright © 2025 – All Rights Reserved
-#
-# 📖 License:
-# This source code is open for educational and non-commercial use ONLY.
-# You are required to retain this credit in all copies or substantial portions of this file.
-# Commercial use, redistribution, or removal of this notice is strictly prohibited
-# without prior written permission from the author.
-#
-# ❤️ Made with dedication and love by ItzShukla
-# -----------------------------------------------
-
 import asyncio
 import os
 from datetime import datetime, timedelta
 from typing import Union
+
 from pyrogram import Client
 from pyrogram.types import InlineKeyboardMarkup
-from pytgcalls import PyTgCalls, StreamType
+
+# Compatible with py-tgcalls==0.8.6
+from pytgcalls import PyTgCalls
 from pytgcalls.exceptions import (
     AlreadyJoinedError,
     NoActiveGroupCall,
@@ -26,7 +15,12 @@ from pytgcalls.exceptions import (
 )
 from pytgcalls.types import Update
 from pytgcalls.types.input_stream import AudioPiped, AudioVideoPiped
-from pytgcalls.types.input_stream.quality import HighQualityAudio, LowQualityAudio, MediumQualityVideo, LowQualityVideo
+from pytgcalls.types.input_stream.quality import (
+    HighQualityAudio,
+    LowQualityAudio,
+    MediumQualityVideo,
+    LowQualityVideo,
+)
 from pytgcalls.types.stream import StreamAudioEnded
 
 import config
@@ -45,7 +39,11 @@ from ShashankMusic.utils.database import (
     set_loop,
 )
 from ShashankMusic.utils.exceptions import AssistantErr
-from ShashankMusic.utils.formatters import check_duration, seconds_to_min, speed_converter
+from ShashankMusic.utils.formatters import (
+    check_duration,
+    seconds_to_min,
+    speed_converter,
+)
 from ShashankMusic.utils.inline.play import stream_markup
 from ShashankMusic.utils.stream.autoclear import auto_clean
 from ShashankMusic.utils.thumbnails import get_thumb
