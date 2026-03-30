@@ -37,7 +37,7 @@ pyfiglet
 python-dotenv
 pyshorteners
 pytz
-pyrofork
+pyrogram==2.0.106
 py-tgcalls==0.8.6
 pyyaml
 requests
