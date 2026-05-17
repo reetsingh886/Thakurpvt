@@ -41,18 +41,18 @@ from strings import get_string
 
 
 SHASHANK_PIC = [
-    "https://files.catbox.moe/udv4ky.jpg",
-    "https://files.catbox.moe/udv4ky.jpg",
-    "https://files.catbox.moe/udv4ky.jpg",
-    "https://files.catbox.moe/udv4ky.jpg",
-    "https://files.catbox.moe/udv4ky.jpg",
-    "https://files.catbox.moe/udv4ky.jpg",
-    "https://files.catbox.moe/udv4ky.jpg",
-    "https://files.catbox.moe/udv4ky.jpg",
-    "https://files.catbox.moe/udv4ky.jpg",
-    "https://files.catbox.moe/udv4ky.jpg",
-    "https://files.catbox.moe/udv4ky.jpg",
-    "https://files.catbox.moe/udv4ky.jpg"
+    "https://n.uguu.se/VZFsTBYe.jpg",
+    "https://d.uguu.se/FiKJAuTl.jpg",
+    "https://d.uguu.se/WVTDlkOJ.jpg",
+    "https://d.uguu.se/dSswAqSk.jpg",
+    "https://n.uguu.se/VZFsTBYe.jpg",
+    "https://d.uguu.se/FiKJAuTl.jpg",
+    "https://d.uguu.se/WVTDlkOJ.jpg",
+    "https://d.uguu.se/WVTDlkOJ.jpg",
+    "https://d.uguu.se/dSswAqSk.jpg",
+    "https://n.uguu.se/VZFsTBYe.jpg",
+    "https://d.uguu.se/FiKJAuTl.jpg",
+    "https://d.uguu.se/WVTDlkOJ.jpg"
 ]
 
 
