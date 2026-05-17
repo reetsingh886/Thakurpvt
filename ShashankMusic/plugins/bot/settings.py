@@ -57,18 +57,18 @@ from ShashankMusic.utils.inline.start import private_panel
 from config import BANNED_USERS, OWNER_ID
 
 SHASHANK_PIC = [
-    "https://files.catbox.moe/qhxsg2.jpg",
-    "https://files.catbox.moe/3y5e6c.jpg",
-    "https://files.catbox.moe/jwwnbc.jpg",
-    "https://files.catbox.moe/9aif4j.jpg",
-    "https://files.catbox.moe/9aif4j.jpg",
-    "https://files.catbox.moe/3y5e6c.jpg",
-    "https://files.catbox.moe/5wfpxe.jpg",
-    "https://files.catbox.moe/9aif4j.jpg",
-    "https://files.catbox.moe/edkdm2.jpg",
-    "https://files.catbox.moe/edkdm2.jpg",
-    "https://files.catbox.moe/3y5e6c.jpg",
-    "https://files.catbox.moe/edkdm2.jpg"
+    "https://d.uguu.se/FiKJAuTl.jpg",
+    "https://d.uguu.se/WVTDlkOJ.jpg",
+    "https://d.uguu.se/dSswAqSk.jpg",
+    "https://n.uguu.se/VZFsTBYe.jpg",
+    "https://d.uguu.se/FiKJAuTl.jpg",
+    "https://d.uguu.se/dSswAqSk.jpg",
+    "https://n.uguu.se/VZFsTBYe.jpg",
+    "https://d.uguu.se/WVTDlkOJ.jpg",
+    "https://d.uguu.se/WVTDlkOJ.jpg",
+    "https://n.uguu.se/VZFsTBYe.jpg",
+    "https://n.uguu.se/VZFsTBYe.jpg",
+    "https://d.uguu.se/FiKJAuTl.jpg"
 ]
 
 
