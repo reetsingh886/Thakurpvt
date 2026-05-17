@@ -46,5 +46,6 @@ tgcrypto
 unidecode
 wget
 youtube-search-python
+py-yt-search
 yt-dlp
 speedtest-cli
